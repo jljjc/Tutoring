@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { McqExplanation } from '@/components/tutor/McqExplanation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -26,7 +27,8 @@ interface TutorData {
   attempts: number
 }
 
-export default function TutorPage({ params }: { params: { id: string } }) {
+export default function TutorPage() {
+  const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<TutorData | null>(null)
   const [loading, setLoading] = useState(true)
   const [mastered, setMastered] = useState(false)
@@ -37,7 +39,7 @@ export default function TutorPage({ params }: { params: { id: string } }) {
       const { data: answer } = await supabase
         .from('test_answers')
         .select('*, question_bank!inner(*), test_sessions!inner(id)')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (!answer) { setLoading(false); return }
@@ -56,7 +58,7 @@ export default function TutorPage({ params }: { params: { id: string } }) {
       setLoading(false)
     }
     load()
-  }, [params.id])
+  }, [id])
 
   if (loading) return <div className="p-8 text-center">Loading tutoring...</div>
   if (!data) return <div className="p-8">Not found.</div>
