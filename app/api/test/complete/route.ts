@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   }))
 
   const sectionScores = computeSectionScores(answersWithSection)
+  // total_score = MCQ correct count only (writing stored separately in section_scores.writing_total)
   const totalScore = Object.values(sectionScores).reduce((sum, v) => sum + v, 0)
 
   // Save writing response if present
@@ -58,12 +59,17 @@ export async function POST(request: Request) {
     ? computeTSS(sectionScores, session.test_type)
     : null
 
-  await supabase.from('test_sessions').update({
+  const { error: updateError } = await supabase.from('test_sessions').update({
     completed_at: new Date().toISOString(),
     total_score: totalScore,
     section_scores: sectionScores,
     projected_tss: projectedTss,
   }).eq('id', sessionId)
+
+  if (updateError) {
+    console.error('[test/complete] session update failed:', updateError.message)
+    return NextResponse.json({ error: 'Failed to complete session' }, { status: 500 })
+  }
 
   return NextResponse.json({ sectionScores, totalScore, projectedTss })
 }
