@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }).eq('id', existing.id)
     tutoringSessionId = existing.id
   } else {
-    const { data: inserted } = await supabase.from('tutoring_sessions').insert({
+    const { data: inserted, error: insertError } = await supabase.from('tutoring_sessions').insert({
       session_id: sessionId,
       student_id: user.id,
       question_id: questionId,
@@ -54,7 +54,11 @@ export async function POST(request: Request) {
       followup_question: followupQuestion,
       attempts,
     }).select('id').single()
-    tutoringSessionId = inserted!.id
+    if (insertError || !inserted) {
+      console.error('[tutor/mcq] insert failed:', insertError?.message)
+      return NextResponse.json({ error: 'Failed to save tutoring session' }, { status: 500 })
+    }
+    tutoringSessionId = inserted.id
   }
 
   return NextResponse.json({ explanation, followupQuestion, attempts, tutoringSessionId })

@@ -32,13 +32,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to generate writing feedback' }, { status: 500 })
   }
 
-  await supabase.from('writing_tutoring_sessions').insert({
+  const { data: wts, error: insertError } = await supabase.from('writing_tutoring_sessions').insert({
     session_id: sessionId,
     writing_response_id: writingResponseId,
     student_id: user.id,
     criterion,
     follow_up_prompt: followUpPrompt,
-  })
+  }).select('id').single()
 
-  return NextResponse.json({ feedback, followUpPrompt })
+  if (insertError || !wts) {
+    console.error('[tutor/writing] insert failed:', insertError?.message)
+    return NextResponse.json({ error: 'Failed to save writing tutoring session' }, { status: 500 })
+  }
+
+  return NextResponse.json({ feedback, followUpPrompt, writingTutoringSessionId: wts.id })
 }

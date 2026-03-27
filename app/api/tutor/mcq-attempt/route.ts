@@ -18,7 +18,8 @@ export async function POST(request: Request) {
 
   const priorityGap = !mastered && (ts?.attempts ?? 0) >= 3
 
-  await supabase.from('tutoring_sessions').update({ mastered }).eq('id', tutoringSessionId)
+  const { error: updateError } = await supabase.from('tutoring_sessions').update({ mastered }).eq('id', tutoringSessionId)
+  if (updateError) console.error('[tutor/mcq-attempt] update failed:', updateError.message)
 
   return NextResponse.json({ mastered, priorityGap })
 }
