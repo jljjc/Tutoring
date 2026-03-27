@@ -172,10 +172,14 @@ create policy "tutoring_sessions: parent read" on public.tutoring_sessions
   );
 
 -- get_user_id_by_email function for parent-child linking
+-- security definer runs as function owner; set search_path prevents schema injection
 create or replace function public.get_user_id_by_email(email text)
 returns uuid
 language sql
 security definer
+set search_path = ''
 as $$
   select id from auth.users where auth.users.email = $1 limit 1;
 $$;
+-- revoke anon execute to prevent unauthenticated email-to-UUID enumeration
+revoke execute on function public.get_user_id_by_email(text) from anon;
