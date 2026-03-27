@@ -1,0 +1,61 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { tutorMcq } from '@/lib/claude/tutor-mcq'
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { sessionId, questionId, wrongAnswer } = await request.json()
+  if (!sessionId || !questionId || !wrongAnswer) {
+    return NextResponse.json({ error: 'sessionId, questionId, and wrongAnswer are required' }, { status: 400 })
+  }
+
+  // Fetch question
+  const { data: question } = await supabase
+    .from('question_bank').select('*').eq('id', questionId).single()
+  if (!question) return NextResponse.json({ error: 'Question not found' }, { status: 404 })
+
+  // Get existing tutoring session if any
+  const { data: existing } = await supabase
+    .from('tutoring_sessions')
+    .select('*').eq('session_id', sessionId).eq('question_id', questionId).single()
+
+  const attempts = (existing?.attempts ?? 0) + 1
+
+  let explanation: string
+  let followupQuestion: Omit<typeof question, 'id' | 'generated_at'>
+  try {
+    const result = await tutorMcq({ question, wrongAnswer, attemptNumber: attempts })
+    explanation = result.explanation
+    followupQuestion = result.followupQuestion
+  } catch (err: unknown) {
+    console.error('[tutor/mcq] Claude error:', err)
+    return NextResponse.json({ error: 'Failed to generate tutoring' }, { status: 500 })
+  }
+
+  let tutoringSessionId: string
+
+  if (existing) {
+    await supabase.from('tutoring_sessions').update({
+      ai_explanation: explanation,
+      followup_question: followupQuestion,
+      attempts,
+    }).eq('id', existing.id)
+    tutoringSessionId = existing.id
+  } else {
+    const { data: inserted } = await supabase.from('tutoring_sessions').insert({
+      session_id: sessionId,
+      student_id: user.id,
+      question_id: questionId,
+      wrong_answer: wrongAnswer,
+      ai_explanation: explanation,
+      followup_question: followupQuestion,
+      attempts,
+    }).select('id').single()
+    tutoringSessionId = inserted!.id
+  }
+
+  return NextResponse.json({ explanation, followupQuestion, attempts, tutoringSessionId })
+}
