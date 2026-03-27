@@ -69,6 +69,8 @@ Based on the Edutest format (most common WA private school scholarship provider)
 ### 4.3 Difficulty Distribution (MCQ sections)
 Each MCQ section uses: **30% Easy · 50% Medium · 20% Hard** — matching the actual test difficulty curve.
 
+Difficulty maps to the `question_bank.difficulty` integer scale as follows: **Easy = 1–2, Medium = 3–4, Hard = 5**.
+
 ---
 
 ## 5. Question Generation & Bank
@@ -104,10 +106,14 @@ This keeps Claude API costs low — questions are generated once and reused acro
 6. On completion: score calculated, `test_sessions` record finalised, tutoring triggered
 
 ### 6.2 Anti-Repeat Guarantee
-The system tracks all `question_id` values seen by each student. A question is only served to a student who has never seen it. When the unseen pool runs low, fresh questions are generated.
+The seen-question set for a student is computed at test-assembly time by querying `test_answers JOIN test_sessions ON student_id`. No separate tracking table is needed for the PoC. A question is only served to a student who has no `test_answers` record for that `question_id`. When the unseen pool runs low, fresh questions are generated via Claude and cached in `question_bank`.
 
-### 6.3 PoC Scope
-For the PoC, the full test can optionally be run in a shorter "practice mode" (e.g. one section at a time) so students can use the app without committing to the full 2h 50min.
+### 6.3 Practice Mode
+For the PoC, students may run in **practice mode**: a single section (e.g. Quantitative Reasoning only) rather than the full test. Practice mode sessions:
+- Generate the normal question count for that section only (e.g. 35 MCQ for Quantitative Reasoning)
+- Trigger tutoring for wrong answers in the same way as full tests
+- Are stored in `test_sessions` with `mode = 'practice'`
+- **Do not contribute to the projected TSS score** (TSS projection requires a completed full test)
 
 ---
 
@@ -135,7 +141,7 @@ Both test types include one written response task per session.
 
 ## 8. Personalised Tutoring Engine
 
-Triggered automatically after test completion for every wrong MCQ answer and for any writing response below a threshold score.
+Triggered automatically after test completion for every wrong MCQ answer. For writing, tutoring is triggered **per-criterion** only (any criterion scoring below 3/5). There is no aggregate writing score threshold.
 
 ### 8.1 MCQ Tutoring
 Claude receives:
@@ -156,11 +162,14 @@ Claude returns:
 - Wrong → new explanation (different approach) + new question, up to 3 attempts
 - After 3 failed attempts → topic flagged as a **Priority Gap** in the parent report
 
+**Follow-up question sourcing:** Follow-up questions are generated ad-hoc by Claude at tutoring time and stored only in `tutoring_sessions.followup_question` (jsonb). They are **not** inserted into `question_bank` and do not receive a `question_id`. This means they are never served as main test questions and are not subject to anti-repeat tracking.
+
 ### 8.2 Writing Tutoring
-- If writing score is below 3/5 on any criterion, tutoring is triggered for the weakest criterion
+- Triggered per-criterion: any criterion scoring below 3/5 triggers tutoring for the weakest criterion
 - Claude gives specific feedback referencing the student's actual text
 - Followed by a new writing prompt targeting that criterion
 - Student submits new response; Claude re-scores and marks criterion as improved or still-developing
+- Re-submissions and updated per-criterion scores are stored in `writing_tutoring_sessions` (see Section 9)
 
 ---
 
@@ -168,9 +177,9 @@ Claude returns:
 
 ```sql
 -- Auth handled by Supabase; users table extends auth.users
+-- email is intentionally omitted — read from auth.users when needed
 users
   id            uuid PK (references auth.users)
-  email         text
   role          enum('student', 'parent')
   full_name     text
   created_at    timestamp
@@ -187,7 +196,7 @@ question_bank
   test_type     enum('gate', 'scholarship')
   section       text        -- e.g. 'reading_comprehension', 'quantitative_reasoning'
   topic         text        -- e.g. 'word analogies', 'fractions'
-  difficulty    int         -- 1 (easy) to 5 (hard)
+  difficulty    int         -- 1–2 easy, 3–4 medium, 5 hard
   question_text text
   options       jsonb       -- {A: '...', B: '...', C: '...', D: '...'}
   correct_answer text       -- 'A' | 'B' | 'C' | 'D'
@@ -201,8 +210,10 @@ test_sessions
   mode          enum('full', 'practice')
   started_at    timestamp
   completed_at  timestamp
-  total_score   int         -- MCQ correct count
-  projected_tss float       -- estimated GATE TSS out of 400
+  total_score   int         -- total MCQ correct count
+  section_scores jsonb      -- {reading: 28, quantitative: 30, abstract: 22, writing_total: 18}
+                            -- writing_total is the raw sum of 5 criteria (0–25); normalised to 0–35 at TSS computation time
+  projected_tss float       -- estimated GATE TSS out of 400 (full mode only)
 
 test_answers
   id            uuid PK
@@ -221,8 +232,25 @@ writing_responses
   ai_feedback   text
   follow_up_prompt text
 
+-- Stores writing tutoring re-submissions and updated scores per criterion.
+-- writing_responses.scores is immutable (initial scores only).
+-- The canonical current score for a criterion is the latest updated_scores row
+-- by created_at for that criterion.
+writing_tutoring_sessions
+  id            uuid PK
+  session_id    uuid → test_sessions
+  writing_response_id uuid → writing_responses
+  student_id    uuid → users
+  criterion     text        -- e.g. 'vocabulary'
+  follow_up_prompt text
+  resubmission_text text
+  updated_scores jsonb      -- per-criterion scores after re-submission
+  improved      bool
+  created_at    timestamp
+
 tutoring_sessions
   id            uuid PK
+  session_id    uuid → test_sessions
   student_id    uuid → users
   question_id   uuid → question_bank
   wrong_answer  text
@@ -251,12 +279,12 @@ tutoring_sessions
 - 30-day progress summary
 
 ### Projected TSS Calculation (PoC)
-A simple heuristic for the PoC:
-- Calculate % correct per section
-- Weight equally across the 4 sections
-- Map to a TSS range using approximate GATE score benchmarks
-- Label with percentile band (e.g. Top 10%, Top 15%, Top 25%)
-- Updated after every completed test session
+Only calculated for **full** test sessions (not practice mode). A simple heuristic:
+- MCQ sections: calculate % correct per section
+- Writing: normalise the writing total (out of 25) to a 0–35 equivalent before weighting (i.e. `writing_score / 25 * 35`)
+- Weight equally across the 4 sections, map to a 0–400 TSS range using approximate GATE score benchmarks
+- Label with a percentile band (e.g. Top 10%, Top 15%, Top 25%)
+- Stored in `test_sessions.projected_tss` and updated after every completed full test session
 
 ---
 
@@ -276,8 +304,8 @@ A simple heuristic for the PoC:
 /student/progress         Progress charts + knowledge gap map
 
 /parent/dashboard         Parent home — child overview, projected score
-/parent/reports/[child]   Detailed report for a specific child
-/parent/history/[child]   Test history for a specific child
+/parent/reports           Detailed report for the linked child (single-child PoC)
+/parent/history           Test history for the linked child
 ```
 
 ---
