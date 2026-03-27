@@ -32,7 +32,8 @@ export default function SignupPage() {
     if (insertError) { setError(insertError.message); setLoading(false); return }
 
     if (role === 'student') {
-      await supabase.from('student_profiles').insert({ id: data.user.id })
+      const { error: profileError } = await supabase.from('student_profiles').insert({ id: data.user.id })
+      if (profileError) { setError(profileError.message); setLoading(false); return }
     }
 
     if (role === 'parent' && childEmail) {

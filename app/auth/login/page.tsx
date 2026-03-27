@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -38,7 +39,7 @@ export default function LoginPage() {
           className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">
           {loading ? 'Logging in...' : 'Log In'}
         </button>
-        <a href="/auth/signup" className="text-sm text-center text-blue-600">No account? Sign up</a>
+        <Link href="/auth/signup" className="text-sm text-center text-blue-600">No account? Sign up</Link>
       </form>
     </main>
   )
