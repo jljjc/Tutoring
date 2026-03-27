@@ -27,6 +27,7 @@ export interface Question {
   options: { A: string; B: string; C: string; D: string }
   correct_answer: string
   explanation: string
+  generated_at: string
 }
 
 export interface TestSession {
@@ -78,6 +79,19 @@ export interface TutoringSession {
   followup_question: Omit<Question, 'id' | 'generated_at'> | null
   mastered: boolean
   attempts: number
+}
+
+export interface WritingTutoringSession {
+  id: string
+  session_id: string
+  writing_response_id: string
+  student_id: string
+  criterion: keyof WritingScores
+  follow_up_prompt: string | null
+  resubmission_text: string | null
+  updated_scores: WritingScores | null
+  improved: boolean | null
+  created_at: string
 }
 
 export interface WritingCriterion {

@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({ request })
@@ -28,7 +28,11 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   if (!user && (path.startsWith('/student') || path.startsWith('/parent'))) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    const redirectResponse = NextResponse.redirect(new URL('/auth/login', request.url))
+    supabaseResponse.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    return redirectResponse
   }
 
   return supabaseResponse
