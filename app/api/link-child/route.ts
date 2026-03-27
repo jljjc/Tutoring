@@ -37,6 +37,9 @@ export async function POST(request: Request) {
     .update({ parent_id: user.id })
     .eq('id', childUserId)
 
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+  if (updateError) {
+    console.error('[link-child] update failed:', updateError.message)
+    return NextResponse.json({ error: 'Failed to link child account' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }
