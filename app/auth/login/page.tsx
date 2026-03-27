@@ -32,9 +32,9 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold">Log In</h1>
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-          className="border rounded-lg p-3" required />
+          className="border rounded-lg p-3 text-gray-900 placeholder:text-gray-400" required />
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-          className="border rounded-lg p-3" required />
+          className="border rounded-lg p-3 text-gray-900 placeholder:text-gray-400" required />
         <button type="submit" disabled={loading}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">
           {loading ? 'Logging in...' : 'Log In'}

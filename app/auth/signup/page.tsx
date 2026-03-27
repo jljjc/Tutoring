@@ -62,14 +62,14 @@ export default function SignupPage() {
           ))}
         </div>
         <input placeholder="Full name" value={fullName} onChange={e => setFullName(e.target.value)}
-          className="border rounded-lg p-3" required />
+          className="border rounded-lg p-3 text-gray-900 placeholder:text-gray-400" required />
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-          className="border rounded-lg p-3" required />
+          className="border rounded-lg p-3 text-gray-900 placeholder:text-gray-400" required />
         <input type="password" placeholder="Password (min 6 chars)" value={password} onChange={e => setPassword(e.target.value)}
           className="border rounded-lg p-3" required minLength={6} />
         {role === 'parent' && (
           <input placeholder="Child's email (to link accounts)" value={childEmail} onChange={e => setChildEmail(e.target.value)}
-            className="border rounded-lg p-3" />
+            className="border rounded-lg p-3 text-gray-900 placeholder:text-gray-400" />
         )}
         <button type="submit" disabled={loading}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">
