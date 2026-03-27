@@ -1,0 +1,69 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { computeSectionScores, computeTSS, computeWritingTotal } from '@/lib/test/scoring'
+import type { WritingScores } from '@/lib/types'
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { sessionId, writingResponse } = await request.json() as {
+    sessionId: string
+    writingResponse?: {
+      prompt: string
+      responseText: string
+      scores: WritingScores
+      aiFeedback: string
+      followUpPrompt: string
+    }
+  }
+
+  if (!sessionId) return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
+
+  // Get session
+  const { data: session } = await supabase
+    .from('test_sessions').select('*').eq('id', sessionId).single()
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+
+  // Get all answers for this session with section info
+  const { data: answers } = await supabase
+    .from('test_answers')
+    .select('is_correct, question_bank!inner(section)')
+    .eq('session_id', sessionId)
+
+  const answersWithSection = (answers ?? []).map((a: any) => ({
+    section: a.question_bank.section as string,
+    is_correct: a.is_correct as boolean,
+  }))
+
+  const sectionScores = computeSectionScores(answersWithSection)
+  const totalScore = Object.values(sectionScores).reduce((sum, v) => sum + v, 0)
+
+  // Save writing response if present
+  if (writingResponse) {
+    await supabase.from('writing_responses').insert({
+      session_id: sessionId,
+      prompt: writingResponse.prompt,
+      response_text: writingResponse.responseText,
+      scores: writingResponse.scores,
+      ai_feedback: writingResponse.aiFeedback,
+      follow_up_prompt: writingResponse.followUpPrompt,
+    })
+    sectionScores['writing_total'] = computeWritingTotal(writingResponse.scores)
+  }
+
+  // Compute TSS for full mode only
+  const projectedTss = session.mode === 'full'
+    ? computeTSS(sectionScores, session.test_type)
+    : null
+
+  await supabase.from('test_sessions').update({
+    completed_at: new Date().toISOString(),
+    total_score: totalScore,
+    section_scores: sectionScores,
+    projected_tss: projectedTss,
+  }).eq('id', sessionId)
+
+  return NextResponse.json({ sectionScores, totalScore, projectedTss })
+}
