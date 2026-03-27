@@ -42,16 +42,22 @@ Return ONLY a valid JSON array, no other text:
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const parsed = JSON.parse(text)
+  let parsed: unknown[]
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error(`Claude returned non-JSON response: ${text.slice(0, 200)}`)
+  }
 
-  return parsed.map((q: any) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (parsed as any[]).map((q) => ({
     test_type: testType,
     section,
     topic,
     difficulty,
-    question_text: q.question_text,
-    options: q.options,
-    correct_answer: q.correct_answer,
-    explanation: q.explanation,
+    question_text: q.question_text as string,
+    options: q.options as { A: string; B: string; C: string; D: string },
+    correct_answer: q.correct_answer as string,
+    explanation: q.explanation as string,
   }))
 }

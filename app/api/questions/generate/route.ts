@@ -7,14 +7,18 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { testType, section, topic, difficulty, count } = await request.json()
+  const body = await request.json()
+  const { testType, section, topic, difficulty, count } = body
+  if (!testType || !section || !topic || difficulty == null || !count) {
+    return NextResponse.json({ error: 'Missing required fields: testType, section, topic, difficulty, count' }, { status: 400 })
+  }
 
   try {
     const questions = await generateQuestions({ testType, section, topic, difficulty, count })
     const { data, error } = await supabase.from('question_bank').insert(questions).select()
     if (error) throw error
     return NextResponse.json({ questions: data })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[questions/generate] error:', err)
     return NextResponse.json({ error: 'Failed to generate questions' }, { status: 500 })
   }
