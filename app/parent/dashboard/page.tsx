@@ -33,7 +33,7 @@ export default async function ParentDashboard() {
   return (
     <main className="max-w-2xl mx-auto p-8 flex flex-col gap-6">
       <h1 className="text-2xl font-bold">
-        {child ? `${(child as any).users.full_name}'s Progress` : 'Parent Dashboard'}
+        {child ? `${(child as unknown as { users: { full_name: string } }).users.full_name}'s Progress` : 'Parent Dashboard'}
       </h1>
 
       {!child && (

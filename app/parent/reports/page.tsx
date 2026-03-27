@@ -18,7 +18,8 @@ export default async function ReportsPage() {
     .select('mastered, attempts, question_bank!inner(topic, section)')
     .eq('student_id', child.id)
 
-  const gaps = (tutoringSessions ?? []).map((ts: any) => ({
+  type TutoringRow = { mastered: boolean; attempts: number; question_bank: { topic: string; section: string } }
+  const gaps = (tutoringSessions as unknown as TutoringRow[]).map(ts => ({
     topic: ts.question_bank.topic,
     section: ts.question_bank.section,
     mastered: ts.mastered,

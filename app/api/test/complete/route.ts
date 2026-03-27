@@ -32,9 +32,10 @@ export async function POST(request: Request) {
     .select('is_correct, question_bank!inner(section)')
     .eq('session_id', sessionId)
 
-  const answersWithSection = (answers ?? []).map((a: any) => ({
-    section: a.question_bank.section as string,
-    is_correct: a.is_correct as boolean,
+  type AnswerRow = { is_correct: boolean; question_bank: { section: string } }
+  const answersWithSection = (answers as unknown as AnswerRow[]).map(a => ({
+    section: a.question_bank.section,
+    is_correct: a.is_correct,
   }))
 
   const sectionScores = computeSectionScores(answersWithSection)

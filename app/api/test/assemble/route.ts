@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     .from('test_answers')
     .select('question_id, test_sessions!inner(student_id)')
     .eq('test_sessions.student_id', user.id)
-  const seenIds = new Set((seenAnswers ?? []).map((a: any) => a.question_id as string))
+  const seenIds = new Set((seenAnswers ?? []).map(a => (a as { question_id: string }).question_id))
 
   const sections = mode === 'practice' && sectionKey
     ? TEST_CONFIG[testType].filter(s => s.key === sectionKey)

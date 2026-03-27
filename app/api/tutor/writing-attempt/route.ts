@@ -19,10 +19,13 @@ export async function POST(request: Request) {
     .single()
   if (!wts) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  type WtsRow = { criterion: string; writing_responses: { prompt: string } }
+  const wtsRow = wts as unknown as WtsRow
+
   let result: Awaited<ReturnType<typeof scoreWriting>>
   try {
     result = await scoreWriting({
-      prompt: (wts as any).writing_responses.prompt,
+      prompt: wtsRow.writing_responses.prompt,
       responseText: resubmissionText,
       testType,
     })
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to score resubmission' }, { status: 500 })
   }
 
-  const improved = result.scores[(wts as any).criterion as keyof typeof result.scores] >= 3
+  const improved = result.scores[wtsRow.criterion as keyof typeof result.scores] >= 3
 
   const { error: updateError } = await supabase.from('writing_tutoring_sessions').update({
     resubmission_text: resubmissionText,

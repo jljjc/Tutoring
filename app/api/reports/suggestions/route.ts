@@ -20,10 +20,11 @@ export async function GET() {
     .eq('mastered', false)
     .gte('attempts', 3)
 
-  const gapSummary = (gaps ?? []).map((g: any) => ({
-    topic: (g.question_bank as any).topic as string,
-    section: (g.question_bank as any).section as string,
-    attempts: g.attempts as number,
+  type GapRow = { attempts: number; question_bank: { topic: string; section: string } }
+  const gapSummary = (gaps as unknown as GapRow[]).map(g => ({
+    topic: g.question_bank.topic,
+    section: g.question_bank.section,
+    attempts: g.attempts,
   }))
 
   try {

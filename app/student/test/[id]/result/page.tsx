@@ -48,7 +48,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
       {wrongAnswers && wrongAnswers.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="font-semibold">Questions to Review ({wrongAnswers.length})</h2>
-          {wrongAnswers.map((a: { id: string; question_bank: { topic: string; section: string } }) => (
+          {(wrongAnswers as unknown as { id: string; question_bank: { topic: string; section: string } }[]).map((a) => (
             <Link key={a.id} href={`/student/tutor/${a.id}`}
               className="flex justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100">
               <span>{a.question_bank.topic}</span>
