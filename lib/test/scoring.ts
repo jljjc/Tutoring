@@ -1,6 +1,6 @@
 import type { TestType } from '@/lib/types'
 import type { WritingScores } from '@/lib/types'
-import { TEST_CONFIG, TSS_BANDS } from './constants'
+import { TEST_CONFIG, TSS_BANDS, WRITING_RAW_MAX, WRITING_NORM_MAX } from './constants'
 
 interface AnswerWithSection {
   section: string
@@ -22,16 +22,16 @@ export function computeTSS(
 ): number {
   const sections = TEST_CONFIG[testType].filter(s => s.type === 'mcq')
 
-  // Normalise writing (0–25) → (0–35)
+  // Normalise writing (0–WRITING_RAW_MAX) → (0–WRITING_NORM_MAX)
   const writingRaw = sectionScores['writing_total'] ?? 0
-  const writingNorm = (writingRaw / 25) * 35
+  const writingNorm = (writingRaw / WRITING_RAW_MAX) * WRITING_NORM_MAX
 
   const allNorm = [
     ...sections.map(s => ({
       score: sectionScores[s.key] ?? 0,
       max: s.questionCount,
     })),
-    { score: writingNorm, max: 35 },
+    { score: writingNorm, max: WRITING_NORM_MAX },
   ]
 
   const totalPercent = allNorm.reduce((sum, s) => sum + s.score / s.max, 0) / allNorm.length

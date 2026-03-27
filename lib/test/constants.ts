@@ -33,6 +33,10 @@ export const DIFFICULTY_RANGE = {
   hard: [5, 5] as [number, number],
 }
 
+// Writing score range constants
+export const WRITING_RAW_MAX = 25  // sum of 5 criteria × max 5 each
+export const WRITING_NORM_MAX = 35 // normalised to same scale as MCQ sections
+
 // Approximate TSS percentile bands (heuristic for PoC)
 export const TSS_BANDS = [
   { minTss: 360, label: 'Top 5%' },
