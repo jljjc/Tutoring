@@ -3,26 +3,20 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { McqExplanation } from '@/components/tutor/McqExplanation'
 import { createClient } from '@/lib/supabase/client'
+import type { Question } from '@/lib/types'
 import Link from 'next/link'
 
+interface AnswerRow {
+  question_id: string
+  selected_answer: string
+  question_bank: { section: string; question_text: string }
+  test_sessions: { id: string }
+}
+
 interface TutorData {
-  answer: {
-    question_id: string
-    selected_answer: string
-    question_bank: { section: string; question_text: string }
-    test_sessions: { id: string }
-  }
+  answer: AnswerRow
   explanation: string
-  followupQuestion: {
-    question_text: string
-    options: { A: string; B: string; C: string; D: string }
-    correct_answer: string
-    topic: string
-    section: string
-    test_type: string
-    difficulty: number
-    explanation: string
-  }
+  followupQuestion: Omit<Question, 'id' | 'generated_at'>
   tutoringSessionId: string
   attempts: number
 }
@@ -48,13 +42,13 @@ export default function TutorPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: (answer as any).test_sessions.id,
+          sessionId: (answer as unknown as AnswerRow).test_sessions.id,
           questionId: answer.question_id,
           wrongAnswer: answer.selected_answer,
         }),
       })
       const tutorData = await res.json()
-      setData({ answer: answer as any, ...tutorData })
+      setData({ answer: answer as unknown as AnswerRow, ...tutorData })
       setLoading(false)
     }
     load()
@@ -81,7 +75,7 @@ export default function TutorPage() {
           </div>
         : <McqExplanation
             explanation={data.explanation}
-            followupQuestion={data.followupQuestion as any}
+            followupQuestion={data.followupQuestion}
             tutoringSessionId={data.tutoringSessionId}
             attempts={data.attempts}
             onMastered={() => setMastered(true)}

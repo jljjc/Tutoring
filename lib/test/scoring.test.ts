@@ -8,7 +8,7 @@ describe('computeSectionScores', () => {
       { section: 'reading_comprehension', is_correct: false },
       { section: 'quantitative_reasoning', is_correct: true },
     ]
-    const result = computeSectionScores(answers as any)
+    const result = computeSectionScores(answers)
     expect(result.reading_comprehension).toBe(1)
     expect(result.quantitative_reasoning).toBe(1)
   })

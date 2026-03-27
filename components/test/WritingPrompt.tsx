@@ -7,7 +7,7 @@ interface Props {
   timeLimitSecs: number
 }
 
-export function WritingPrompt({ prompt, onSubmit, timeLimitSecs }: Props) {
+export function WritingPrompt({ prompt, onSubmit }: Props) {
   const [text, setText] = useState('')
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length
 
