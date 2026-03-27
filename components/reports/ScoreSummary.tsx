@@ -14,7 +14,7 @@ export function ScoreSummary({ latestTss, totalTests, progressPercent }: Props) 
       <StatCard label="Projected TSS" value={latestTss ? String(Math.round(latestTss)) : '—'} sub="out of 400" color="blue" />
       <StatCard label="Ranking" value={band ?? '—'} sub="estimated" color="green" />
       <StatCard label="Tests Done" value={String(totalTests)} sub="sessions" color="purple" />
-      <StatCard label="30-day Progress" value={progressPercent != null ? `+${progressPercent}%` : '—'} sub="improvement" color="orange" />
+      <StatCard label="30-day Progress" value={progressPercent != null ? `${progressPercent >= 0 ? '+' : ''}${progressPercent}%` : '—'} sub="improvement" color="orange" />
     </div>
   )
 }

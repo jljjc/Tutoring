@@ -20,20 +20,26 @@ export function McqExplanation({ explanation, followupQuestion, tutoringSessionI
   async function checkAnswer() {
     if (!selected) return
     setSubmitting(true)
-    const res = await fetch('/api/tutor/mcq-attempt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tutoringSessionId,
-        selectedAnswer: selected,
-        correctAnswer: followupQuestion.correct_answer,
-      }),
-    })
-    const data = await res.json()
-    setResult(data)
-    setSubmitting(false)
-    if (data.mastered) onMastered()
-    else if (data.priorityGap) onGap()
+    try {
+      const res = await fetch('/api/tutor/mcq-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tutoringSessionId,
+          selectedAnswer: selected,
+          correctAnswer: followupQuestion.correct_answer,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to check answer')
+      const data = await res.json()
+      setResult(data)
+      if (data.mastered) onMastered()
+      else if (data.priorityGap) onGap()
+    } catch (err) {
+      console.error('[McqExplanation] checkAnswer failed:', err)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

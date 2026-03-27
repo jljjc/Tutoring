@@ -1,18 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { getTSSBand } from '@/lib/test/scoring'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 export default async function StudentDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
 
   const { data: profile } = await supabase
-    .from('users').select('full_name').eq('id', user!.id).single()
+    .from('users').select('full_name').eq('id', user.id).single()
 
   const { data: recentSessions } = await supabase
     .from('test_sessions')
     .select('*')
-    .eq('student_id', user!.id)
+    .eq('student_id', user.id)
     .order('started_at', { ascending: false })
     .limit(5)
 

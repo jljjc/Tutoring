@@ -9,6 +9,7 @@ export function ImprovementSuggestions({ studentId }: { studentId: string }) {
     fetch('/api/reports/suggestions')
       .then(r => r.json())
       .then(d => { setSuggestions(d.suggestions ?? []); setLoading(false) })
+      .catch(() => { setSuggestions([]); setLoading(false) })
   }, [studentId])
 
   if (loading) return <div className="text-sm text-gray-400">Generating suggestions...</div>

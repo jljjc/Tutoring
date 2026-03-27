@@ -1,14 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 export default async function HistoryPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
 
   const { data: sessions } = await supabase
     .from('test_sessions')
     .select('*')
-    .eq('student_id', user!.id)
+    .eq('student_id', user.id)
     .order('started_at', { ascending: false })
 
   return (

@@ -1,15 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { ScoreSummary } from '@/components/reports/ScoreSummary'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 export default async function ParentDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
 
   const { data: child } = await supabase
     .from('student_profiles')
     .select('id, users!inner(full_name)')
-    .eq('parent_id', user!.id)
+    .eq('parent_id', user.id)
     .single()
 
   const { data: sessions } = child

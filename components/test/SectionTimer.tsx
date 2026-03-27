@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   timeLimitSecs: number
@@ -8,9 +8,13 @@ interface Props {
 
 export function SectionTimer({ timeLimitSecs, onExpire }: Props) {
   const [remaining, setRemaining] = useState(timeLimitSecs)
+  const firedRef = useRef(false)
 
   useEffect(() => {
-    if (remaining <= 0) { onExpire(); return }
+    if (remaining <= 0) {
+      if (!firedRef.current) { firedRef.current = true; onExpire() }
+      return
+    }
     const t = setTimeout(() => setRemaining(r => r - 1), 1000)
     return () => clearTimeout(t)
   }, [remaining, onExpire])

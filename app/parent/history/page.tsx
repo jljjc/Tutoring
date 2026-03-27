@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export default async function ParentHistoryPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
 
   const { data: child } = await supabase
-    .from('student_profiles').select('id').eq('parent_id', user!.id).single()
+    .from('student_profiles').select('id').eq('parent_id', user.id).single()
 
   if (!child) return <div className="p-8">No student linked.</div>
 

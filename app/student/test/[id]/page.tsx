@@ -32,11 +32,16 @@ export default function LiveTestPage() {
   }, [id])
 
   const saveAnswer = useCallback(async (questionId: string, answer: string, isCorrect: boolean) => {
-    await fetch('/api/test/answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: id, questionId, selectedAnswer: answer, isCorrect }),
-    })
+    try {
+      const res = await fetch('/api/test/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: id, questionId, selectedAnswer: answer, isCorrect }),
+      })
+      if (!res.ok) console.error('[LiveTest] saveAnswer failed:', await res.text())
+    } catch (err) {
+      console.error('[LiveTest] saveAnswer error:', err)
+    }
   }, [id])
 
   const handleMcqSelect = async (questionId: string, correctAnswer: string, selected: string) => {
@@ -107,23 +112,31 @@ export default function LiveTestPage() {
         <WritingPrompt
           prompt={sessionData.writingPrompts[currentSection.key] ?? ''}
           onSubmit={async (text) => {
-            const scoreRes = await fetch('/api/writing/score', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                prompt: sessionData.writingPrompts[currentSection.key],
-                responseText: text,
-                testType: sessionData.session.test_type,
-              }),
-            })
-            const scored = await scoreRes.json()
-            setScoredWriting({
-              prompt: sessionData.writingPrompts[currentSection.key],
-              responseText: text,
-              scores: scored.scores,
-              aiFeedback: scored.feedback,
-              followUpPrompt: scored.followUpPrompt,
-            })
+            try {
+              const scoreRes = await fetch('/api/writing/score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt: sessionData.writingPrompts[currentSection.key],
+                  responseText: text,
+                  testType: sessionData.session.test_type,
+                }),
+              })
+              if (scoreRes.ok) {
+                const scored = await scoreRes.json()
+                setScoredWriting({
+                  prompt: sessionData.writingPrompts[currentSection.key],
+                  responseText: text,
+                  scores: scored.scores,
+                  aiFeedback: scored.feedback,
+                  followUpPrompt: scored.followUpPrompt,
+                })
+              } else {
+                console.error('[LiveTest] writing score failed:', scoreRes.status)
+              }
+            } catch (err) {
+              console.error('[LiveTest] writing score error:', err)
+            }
             advanceSection()
           }}
           timeLimitSecs={currentSection.timeLimitSecs}

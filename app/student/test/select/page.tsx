@@ -15,16 +15,18 @@ export default function TestSelectPage() {
 
   async function startTest() {
     setLoading(true)
-    const res = await fetch('/api/test/assemble', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ testType, mode, sectionKey: mode === 'practice' ? sectionKey : undefined }),
-    })
-    const data = await res.json()
-    if (data.session) {
+    try {
+      const res = await fetch('/api/test/assemble', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testType, mode, sectionKey: mode === 'practice' ? sectionKey : undefined }),
+      })
+      if (!res.ok) throw new Error('Failed to assemble test')
+      const data = await res.json()
       sessionStorage.setItem(`test-session-${data.session.id}`, JSON.stringify(data))
       router.push(`/student/test/${data.session.id}`)
-    } else {
+    } catch (err) {
+      console.error('[TestSelect] startTest failed:', err)
       setLoading(false)
     }
   }
