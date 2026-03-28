@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 const PAGE_SIZE = 10
@@ -15,7 +16,7 @@ export default async function ParentHistoryPage({
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return <div className="p-8 text-muted">Not authenticated.</div>
+  if (!user) redirect('/auth/login')
 
   const { data: child } = await supabase
     .from('student_profiles').select('id').eq('parent_id', user.id).single()
