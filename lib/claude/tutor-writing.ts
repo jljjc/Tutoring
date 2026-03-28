@@ -1,4 +1,4 @@
-import { getChatCompletionText } from './client'
+import { getChatCompletionText, OPENAI_TUTOR_MODEL } from './client'
 import type { WritingScores } from '@/lib/types'
 
 export async function tutorWriting(params: {
@@ -32,6 +32,7 @@ Return ONLY valid JSON:
 }`
 
   const text = await getChatCompletionText({
+    model: OPENAI_TUTOR_MODEL,
     prompt,
     maxTokens: 512,
     json: true,

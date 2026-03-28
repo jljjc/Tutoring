@@ -1,4 +1,4 @@
-import { getChatCompletionText } from './client'
+import { getChatCompletionText, OPENAI_QUESTION_MODEL } from './client'
 import type { Question, TestType } from '@/lib/types'
 
 interface GenerateQuestionsParams {
@@ -27,15 +27,33 @@ Example format for a matrix question:
 
 Make patterns that test: rotation, reflection, size progression, number sequence, shape transformation, or odd-one-out.` : ''
 
-  const prompt = `You are creating multiple-choice questions for Western Australia Year 6 students preparing for the ${testType === 'gate' ? 'GATE/ASET test' : 'Academic Scholarship test'}.
+  const sectionGuidance: Record<string, string> = {
+    reading_comprehension: 'Use short but information-dense passages. Questions should test inference, author intent, vocabulary-in-context, tone, and evidence, not just literal recall.',
+    quantitative_reasoning: 'Use selective-entry style maths reasoning: multi-step arithmetic, number patterns, ratios, fractions, units, geometry, and worded problem solving. Avoid trivial single-step sums.',
+    abstract_reasoning: 'Use true reasoning patterns: transformations, sequences, matrices, symmetry, rotation, reflection, positional logic, and rule detection.',
+    english: 'Test advanced reading and language: grammar in context, cloze-style reasoning, vocabulary precision, sentence meaning, and comprehension.',
+    mathematics: 'Use scholarship-style maths with multi-step reasoning, algebraic thinking, number sense, geometry, and problem solving. Avoid routine worksheet questions.',
+    general_ability: 'Use competitive reasoning questions involving analogies, classification, logical deduction, coded relationships, and higher-order pattern recognition.',
+  }
+
+  const prompt = `You are creating premium-quality multiple-choice questions for high-performing Western Australian Year 6 students competing for Year 7 entry into ${testType === 'gate' ? 'GATE/ASET selective programs' : 'academic scholarship programs'}.
+
+These students are upper-primary candidates sitting a competitive exam. Do NOT write questions that feel like they are for six-year-olds, early primary, or routine classroom worksheets.
 
 Generate exactly ${count} multiple-choice questions for the "${section}" section on the topic "${topic}" at ${diffLabel} difficulty (level ${difficulty}/5).
 
 Requirements:
-- Appropriate for Year 6 students (age 11-12)
+- Use Australian English
+- Target academically strong Year 6 students preparing for a competitive Year 7 entry exam
+- Even "easy" questions must still feel like the easier end of a selective-entry paper, not trivial recall
+- Medium questions should require genuine reasoning or multi-step thinking
+- Hard questions should feel stretching, exam-standard, and intellectually fair
 - Clear, unambiguous wording
 - Four options (A, B, C, D) with exactly one correct answer
+- Plausible distractors that reflect common mistakes
 - Brief explanation of why the correct answer is right
+- Avoid babyish scenarios, overly simple vocabulary, or one-step questions unless the section truly demands it
+- Section guidance: ${sectionGuidance[section] ?? 'Make the question exam-like, rigorous, and age-appropriate for a selective-entry candidate.'}
 ${abstractInstructions}
 
 Return ONLY a valid JSON object, no other text:
@@ -51,6 +69,7 @@ Return ONLY a valid JSON object, no other text:
 }`
 
   const text = await getChatCompletionText({
+    model: OPENAI_QUESTION_MODEL,
     prompt,
     maxTokens: 4096,
     json: true,

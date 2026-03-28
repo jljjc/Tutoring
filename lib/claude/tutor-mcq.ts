@@ -1,4 +1,4 @@
-import { getChatCompletionText } from './client'
+import { getChatCompletionText, OPENAI_TUTOR_MODEL } from './client'
 import type { Question } from '@/lib/types'
 
 export interface ConceptCheck {
@@ -94,6 +94,7 @@ Return ONLY valid JSON — no markdown, no extra text:
 }`
 
   const text = await getChatCompletionText({
+    model: OPENAI_TUTOR_MODEL,
     prompt,
     maxTokens: 2048,
     json: true,

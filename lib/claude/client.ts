@@ -10,17 +10,26 @@ export function getOpenAIClient(): OpenAI {
 }
 
 export const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL ?? 'gpt-4o-mini'
+export const OPENAI_QUESTION_MODEL =
+  process.env.OPENAI_QUESTION_MODEL
+  ?? process.env.OPENAI_TEXT_MODEL
+  ?? 'gpt-5-mini'
+export const OPENAI_TUTOR_MODEL =
+  process.env.OPENAI_TUTOR_MODEL
+  ?? process.env.OPENAI_TEXT_MODEL
+  ?? 'gpt-4o-mini'
 
 export async function getChatCompletionText(params: {
   system?: string
   prompt: string
   maxTokens?: number
   json?: boolean
+  model?: string
 }): Promise<string> {
   const client = getOpenAIClient()
 
   const response = await client.chat.completions.create({
-    model: OPENAI_TEXT_MODEL,
+    model: params.model ?? OPENAI_TEXT_MODEL,
     temperature: 0.7,
     max_completion_tokens: params.maxTokens,
     response_format: params.json ? { type: 'json_object' } : undefined,

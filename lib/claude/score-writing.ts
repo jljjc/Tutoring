@@ -1,4 +1,4 @@
-import { getChatCompletionText } from './client'
+import { getChatCompletionText, OPENAI_TUTOR_MODEL } from './client'
 import type { WritingScores, TestType } from '@/lib/types'
 
 interface ScoreWritingResult {
@@ -46,6 +46,7 @@ Return ONLY valid JSON, no other text:
 }`
 
   const text = await getChatCompletionText({
+    model: OPENAI_TUTOR_MODEL,
     system: systemPrompt,
     prompt: userPrompt,
     maxTokens: 1024,
