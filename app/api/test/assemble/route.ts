@@ -100,7 +100,8 @@ export async function POST(request: Request) {
         }
       }
 
-      selected = selectQuestions(generatedWithIds, seenIds, slots) ?? generatedWithIds.slice(0, slots.length)
+      selected = selectQuestions(generatedWithIds, seenIds, slots)
+        ?? generatedWithIds.slice(0, slots.easy + slots.medium + slots.hard)
     }
 
     assembledSections[section.key] = shuffleArray(selected)

@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-export function LinkStudentForm() {
+export function LinkStudentForm({ hasChildren }: { hasChildren: boolean }) {
+  const router = useRouter()
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,8 +23,9 @@ export function LinkStudentForm() {
         setStatus('error')
         setMessage(data.error ?? 'Failed to link student.')
       } else {
-        setStatus('success')
-        setMessage('Student linked! Reload the page to see their progress.')
+        setEmail('')
+        setStatus('idle')
+        router.refresh()
       }
     } catch {
       setStatus('error')
@@ -35,9 +38,6 @@ export function LinkStudentForm() {
       {status === 'error' && (
         <p className="text-sm text-danger bg-danger/10 border border-danger/20 rounded-lg px-3 py-2">{message}</p>
       )}
-      {status === 'success' && (
-        <p className="text-sm text-success bg-success/10 border border-success/20 rounded-lg px-3 py-2">{message}</p>
-      )}
       <div className="flex gap-2">
         <input
           type="email"
@@ -49,10 +49,10 @@ export function LinkStudentForm() {
         />
         <button
           type="submit"
-          disabled={status === 'loading' || status === 'success'}
+          disabled={status === 'loading'}
           className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
         >
-          {status === 'loading' ? 'Linking...' : 'Link Student'}
+          {status === 'loading' ? 'Linking...' : hasChildren ? 'Link Another' : 'Link Student'}
         </button>
       </div>
     </form>

@@ -3,23 +3,42 @@ import { KnowledgeGapMap } from '@/components/reports/KnowledgeGapMap'
 import { ImprovementSuggestions } from '@/components/reports/ImprovementSuggestions'
 import { redirect } from 'next/navigation'
 
-export default async function ReportsPage() {
+type ChildRow = {
+  id: string
+  users: { full_name: string } | Array<{ full_name: string }>
+}
+
+function getChildName(child: ChildRow): string {
+  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string }>
+}) {
+  const { child: childParam } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: child } = await supabase
-    .from('student_profiles').select('id').eq('parent_id', user.id).single()
+  const { data: children } = await supabase
+    .from('student_profiles')
+    .select('id, users!inner(full_name)')
+    .eq('parent_id', user.id)
 
-  if (!child) return <div className="p-8">No student linked.</div>
+  const childList = (children ?? []) as unknown as ChildRow[]
+  if (childList.length === 0) return <div className="p-8">No student linked.</div>
+
+  const selectedChild = childList.find(child => child.id === childParam) ?? childList[0]
 
   const { data: tutoringSessions } = await supabase
     .from('tutoring_sessions')
     .select('mastered, attempts, question_bank!inner(topic, section)')
-    .eq('student_id', child.id)
+    .eq('student_id', selectedChild.id)
 
   type TutoringRow = { mastered: boolean; attempts: number; question_bank: { topic: string; section: string } }
-  const gaps = (tutoringSessions as unknown as TutoringRow[]).map(ts => ({
+  const gaps = ((tutoringSessions ?? []) as unknown as TutoringRow[]).map(ts => ({
     topic: ts.question_bank.topic,
     section: ts.question_bank.section,
     mastered: ts.mastered,
@@ -29,7 +48,7 @@ export default async function ReportsPage() {
   const { data: sessions } = await supabase
     .from('test_sessions')
     .select('section_scores, started_at')
-    .eq('student_id', child.id)
+    .eq('student_id', selectedChild.id)
     .eq('mode', 'full')
     .not('section_scores', 'is', null)
     .order('started_at', { ascending: false })
@@ -37,7 +56,7 @@ export default async function ReportsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-8 flex flex-col gap-8">
-      <h1 className="text-2xl font-bold">Detailed Report</h1>
+      <h1 className="text-2xl font-bold">Detailed Report for {getChildName(selectedChild)}</h1>
 
       <section>
         <h2 className="font-semibold mb-3">Knowledge Gap Map</h2>
@@ -46,7 +65,7 @@ export default async function ReportsPage() {
 
       <section>
         <h2 className="font-semibold mb-3">Improvement Suggestions</h2>
-        <ImprovementSuggestions studentId={child.id} />
+        <ImprovementSuggestions studentId={selectedChild.id} />
       </section>
 
       <section>

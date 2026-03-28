@@ -3,13 +3,21 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 const PAGE_SIZE = 10
+type ChildRow = {
+  id: string
+  users: { full_name: string } | Array<{ full_name: string }>
+}
+
+function getChildName(child: ChildRow): string {
+  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+}
 
 export default async function ParentHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; child?: string }>
 }) {
-  const { page: pageParam } = await searchParams
+  const { page: pageParam, child: childParam } = await searchParams
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
@@ -18,10 +26,14 @@ export default async function ParentHistoryPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: child } = await supabase
-    .from('student_profiles').select('id').eq('parent_id', user.id).single()
+  const { data: children } = await supabase
+    .from('student_profiles')
+    .select('id, users!inner(full_name)')
+    .eq('parent_id', user.id)
 
-  if (!child) {
+  const childList = (children ?? []) as unknown as ChildRow[]
+
+  if (childList.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-text-primary mb-4">Test History</h1>
@@ -32,10 +44,15 @@ export default async function ParentHistoryPage({
     )
   }
 
+  const childIds = childList.map(child => child.id)
+  const selectedChildId = childParam && childIds.includes(childParam) ? childParam : null
+  const filteredChildIds = selectedChildId ? [selectedChildId] : childIds
+  const childNameById = new Map(childList.map(child => [child.id, getChildName(child)]))
+
   const { data: sessions, count } = await supabase
     .from('test_sessions')
     .select('*', { count: 'exact' })
-    .eq('student_id', child.id)
+    .in('student_id', filteredChildIds)
     .not('completed_at', 'is', null)
     .order('started_at', { ascending: false })
     .range(from, to)
@@ -60,12 +77,18 @@ export default async function ParentHistoryPage({
         {sessions?.map(s => {
           const testType = (s.test_type as string).toUpperCase()
           const mode = (s.mode as string).toUpperCase()
+          const childName = childNameById.get(s.student_id)
           return (
             <div key={s.id} className="bg-surface border border-border rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="flex gap-2 shrink-0">
                   <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-semibold rounded-full">{testType}</span>
                   <span className="px-2 py-0.5 bg-surface-raised text-muted text-xs font-medium rounded-full">{mode}</span>
+                  {childName && (
+                    <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs font-medium rounded-full">
+                      {childName}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-muted truncate">{new Date(s.started_at).toLocaleString()}</p>
               </div>
@@ -79,7 +102,7 @@ export default async function ParentHistoryPage({
                   )}
                 </div>
                 <Link
-                  href={`/student/test/${s.id}/result`}
+                  href={`/parent/test/${s.id}/report`}
                   className="px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium rounded-xl transition-colors"
                 >
                   View →
@@ -93,7 +116,7 @@ export default async function ParentHistoryPage({
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-8">
           <Link
-            href={`?page=${page - 1}`}
+            href={`?page=${page - 1}${selectedChildId ? `&child=${selectedChildId}` : ''}`}
             className={`px-4 py-2 border border-border rounded-xl text-sm font-medium transition-colors ${
               page <= 1 ? 'opacity-30 pointer-events-none text-muted' : 'text-text-primary hover:bg-surface-raised'
             }`}
@@ -102,7 +125,7 @@ export default async function ParentHistoryPage({
           </Link>
           <span className="text-sm text-muted">Page {page} of {totalPages}</span>
           <Link
-            href={`?page=${page + 1}`}
+            href={`?page=${page + 1}${selectedChildId ? `&child=${selectedChildId}` : ''}`}
             className={`px-4 py-2 border border-border rounded-xl text-sm font-medium transition-colors ${
               page >= totalPages ? 'opacity-30 pointer-events-none text-muted' : 'text-text-primary hover:bg-surface-raised'
             }`}

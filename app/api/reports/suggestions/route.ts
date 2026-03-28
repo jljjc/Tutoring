@@ -2,14 +2,24 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateSuggestions } from '@/lib/claude/suggestions'
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get the linked student (parent role only)
-  const { data: child } = await supabase
-    .from('student_profiles').select('id').eq('parent_id', user.id).single()
+  const { searchParams } = new URL(request.url)
+  const studentId = searchParams.get('studentId')
+
+  let childQuery = supabase
+    .from('student_profiles')
+    .select('id')
+    .eq('parent_id', user.id)
+
+  if (studentId) {
+    childQuery = childQuery.eq('id', studentId)
+  }
+
+  const { data: child } = await childQuery.limit(1).maybeSingle()
   if (!child) return NextResponse.json({ suggestions: [] })
 
   // Get priority gaps: unmastered after 3+ attempts

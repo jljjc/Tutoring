@@ -13,9 +13,14 @@ export function McqQuestion({ question, selectedAnswer, onSelect, questionNumber
     <div className="flex flex-col gap-5">
       {/* Question header */}
       <div className="flex items-start gap-3">
-        <span className="shrink-0 w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold flex items-center justify-center">
-          {questionNumber}
-        </span>
+        <div className="shrink-0 flex flex-col items-center gap-1">
+          <span className="w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold flex items-center justify-center">
+            {questionNumber}
+          </span>
+          <span className="text-[11px] text-muted font-medium">
+            {questionNumber}/{total}
+          </span>
+        </div>
         <p className="text-text-primary text-base leading-relaxed font-medium pt-1 whitespace-pre-wrap font-mono">{question.question_text}</p>
       </div>
 

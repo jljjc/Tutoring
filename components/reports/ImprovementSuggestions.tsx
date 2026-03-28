@@ -6,7 +6,8 @@ export function ImprovementSuggestions({ studentId }: { studentId: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/reports/suggestions')
+    setLoading(true)
+    fetch(`/api/reports/suggestions?studentId=${encodeURIComponent(studentId)}`)
       .then(r => r.json())
       .then(d => { setSuggestions(d.suggestions ?? []); setLoading(false) })
       .catch(() => { setSuggestions([]); setLoading(false) })
