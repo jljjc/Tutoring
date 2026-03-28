@@ -79,6 +79,7 @@ export interface TutoringSession {
   followup_question: Omit<Question, 'id' | 'generated_at'> | null
   mastered: boolean
   attempts: number
+  concept_checks_passed: number
 }
 
 export interface WritingTutoringSession {

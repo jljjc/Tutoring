@@ -35,7 +35,7 @@ function CircularTimer({ timeLimitSecs, onExpire }: { timeLimitSecs: number; onE
 
   const m = Math.floor(secs / 60)
   const s = secs % 60
-  const color = urgent ? '#f59e0b' : warning ? '#f59e0b' : '#6366f1'
+  const color = urgent ? '#ef4444' : warning ? '#f59e0b' : '#6366f1'
 
   return (
     <div className="flex flex-col items-center">

@@ -10,23 +10,42 @@ interface Props {
 
 export function McqQuestion({ question, selectedAnswer, onSelect, questionNumber, total }: Props) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="text-sm text-gray-500">Question {questionNumber} of {total}</div>
-      <p className="text-lg font-medium">{question.question_text}</p>
-      <div className="flex flex-col gap-2">
-        {(Object.entries(question.options) as [string, string][]).map(([key, value]) => (
-          <button
-            key={key}
-            onClick={() => onSelect(key)}
-            className={`text-left p-4 rounded-lg border-2 transition-colors ${
-              selectedAnswer === key
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-400'
-            }`}
-          >
-            <span className="font-bold mr-2">{key}.</span>{value}
-          </button>
-        ))}
+    <div className="flex flex-col gap-5">
+      {/* Question header */}
+      <div className="flex items-start gap-3">
+        <span className="shrink-0 w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold flex items-center justify-center">
+          {questionNumber}
+        </span>
+        <p className="text-text-primary text-base leading-relaxed font-medium pt-1 whitespace-pre-wrap font-mono">{question.question_text}</p>
+      </div>
+
+      {/* Options */}
+      <div className="flex flex-col gap-2.5 pl-11">
+        {(Object.entries(question.options) as [string, string][]).map(([key, value]) => {
+          const selected = selectedAnswer === key
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              className={`text-left px-4 py-3.5 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 group ${
+                selected
+                  ? 'border-primary bg-primary/10 shadow-sm shadow-primary/10'
+                  : 'border-border bg-surface-raised hover:border-primary/50 hover:bg-primary/5'
+              }`}
+            >
+              <span className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold mt-0.5 transition-colors ${
+                selected
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-border text-muted group-hover:border-primary/60'
+              }`}>
+                {key}
+              </span>
+              <span className={`text-sm leading-relaxed ${selected ? 'text-text-primary font-medium' : 'text-muted'}`}>
+                {value}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

@@ -23,7 +23,7 @@ export default function ChangePasswordPage() {
     setLoading(false)
     if (err) { setError(err.message); return }
     setSuccess(true)
-    setTimeout(() => router.back(), 2000)
+    setTimeout(() => router.push('/student/dashboard'), 2000)
   }
 
   return (
@@ -71,9 +71,9 @@ export default function ChangePasswordPage() {
             >
               {loading ? 'Updating...' : 'Update Password'}
             </button>
-            <Link href="#" onClick={() => router.back()} className="text-center text-sm text-muted hover:text-text-primary">
+            <button type="button" onClick={() => router.push('/student/dashboard')} className="text-center text-sm text-muted hover:text-text-primary">
               Cancel
-            </Link>
+            </button>
           </form>
         )}
       </div>

@@ -27,6 +27,7 @@ export default function TutorPage() {
   const [data, setData] = useState<TutorData | null>(null)
   const [loading, setLoading] = useState(true)
   const [mastered, setMastered] = useState(false)
+  const [apiError, setApiError] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -48,6 +49,7 @@ export default function TutorPage() {
           wrongAnswer: answer.selected_answer,
         }),
       })
+      if (!res.ok) { setApiError(true); setLoading(false); return }
       const tutorData = await res.json()
       setData({ answer: answer as unknown as AnswerRow, ...tutorData })
       setLoading(false)
@@ -61,6 +63,12 @@ export default function TutorPage() {
         <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
         <p className="text-muted text-sm">Generating tutoring session...</p>
       </div>
+    </div>
+  )
+
+  if (apiError) return (
+    <div className="max-w-2xl mx-auto px-6 py-10">
+      <p className="text-danger">Failed to load tutoring session. Please go back and try again.</p>
     </div>
   )
 

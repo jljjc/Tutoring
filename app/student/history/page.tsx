@@ -10,7 +10,7 @@ export default async function HistoryPage({
   searchParams: Promise<{ page?: string }>
 }) {
   const { page: pageParam } = await searchParams
-  const page = Math.max(1, parseInt(pageParam ?? '1', 10))
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 

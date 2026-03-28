@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getTSSBand } from '@/lib/test/scoring'
+import { TEST_CONFIG } from '@/lib/test/constants'
 import Link from 'next/link'
 
 export default async function ResultPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,10 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
 
   const scores = session.section_scores as Record<string, number> | null
   const tss = session.projected_tss
+  const testType = session.test_type as keyof typeof TEST_CONFIG
+  const sectionMaxMap = Object.fromEntries(
+    (TEST_CONFIG[testType] ?? []).map(s => [s.key, s.questionCount])
+  )
   const band = tss ? getTSSBand(tss) : null
 
   const bandColor = band === 'Selective Entry' || band === 'High Merit'
@@ -55,7 +60,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             <h2 className="font-bold text-text-primary mb-4">Section Breakdown</h2>
             <div className="flex flex-col gap-3">
               {Object.entries(scores).map(([section, score]) => {
-                const maxScore = 10
+                const maxScore = sectionMaxMap[section] ?? 35
                 const pct = Math.min((score / maxScore) * 100, 100)
                 return (
                   <div key={section}>
