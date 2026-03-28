@@ -15,6 +15,19 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
 
   const diffLabel = difficulty <= 2 ? 'easy' : difficulty <= 4 ? 'medium' : 'hard'
 
+  const isAbstractReasoning = section === 'abstract_reasoning'
+
+  const abstractInstructions = isAbstractReasoning ? `
+IMPORTANT for Abstract Reasoning: Since these are text-based questions, use unicode shapes and symbols to represent visual patterns. Use characters like: ▲ △ ● ○ ■ □ ◆ ◇ ★ ☆ ▶ ▷ and arrange them in grid or sequence format using spaces and newlines.
+
+Example format for a sequence question:
+"question_text": "What comes next in the pattern?\n\n  Row 1: ■  ■  □\n  Row 2: ■  □  □\n  Row 3: □  □  ?"
+
+Example format for a matrix question:
+"question_text": "Which shape completes the pattern?\n\n  ▲  ▲▲  ▲▲▲\n  ●  ●●  ●●●\n  ■  ■■   ?"
+
+Make patterns that test: rotation, reflection, size progression, number sequence, shape transformation, or odd-one-out.` : ''
+
   const prompt = `You are creating multiple-choice questions for Western Australia Year 6 students preparing for the ${testType === 'gate' ? 'GATE/ASET test' : 'Academic Scholarship test'}.
 
 Generate exactly ${count} multiple-choice questions for the "${section}" section on the topic "${topic}" at ${diffLabel} difficulty (level ${difficulty}/5).
@@ -24,6 +37,7 @@ Requirements:
 - Clear, unambiguous wording
 - Four options (A, B, C, D) with exactly one correct answer
 - Brief explanation of why the correct answer is right
+${abstractInstructions}
 
 Return ONLY a valid JSON array, no other text:
 [
@@ -41,7 +55,8 @@ Return ONLY a valid JSON array, no other text:
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   let parsed: unknown[]
   try {
     parsed = JSON.parse(text)

@@ -38,7 +38,8 @@ Return ONLY valid JSON:
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   let parsed: { feedback: string; follow_up_prompt: string }
   try {
     parsed = JSON.parse(text)

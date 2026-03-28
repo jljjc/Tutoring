@@ -54,7 +54,8 @@ Return ONLY valid JSON, no other text:
     messages: [{ role: 'user', content: userPrompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   let parsed: Record<string, unknown>
   try {
     parsed = JSON.parse(text)

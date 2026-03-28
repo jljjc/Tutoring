@@ -24,22 +24,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No student account found with that email' }, { status: 404 })
   }
 
-  // Confirm child is a student role
-  const { data: childProfile } = await supabase
-    .from('users').select('role').eq('id', childUserId).single()
-  if (childProfile?.role !== 'student') {
-    return NextResponse.json({ error: 'That account is not a student' }, { status: 400 })
-  }
-
-  // Set parent_id on student_profiles
-  const { error: updateError } = await supabase
+  // Set parent_id on student_profiles — only students have a row here.
+  // Reading the child's role from `users` would be blocked by RLS (parents can
+  // only see their own row), so we infer student status from the update result.
+  const { data: updated, error: updateError } = await supabase
     .from('student_profiles')
     .update({ parent_id: user.id })
     .eq('id', childUserId)
+    .select('id')
 
   if (updateError) {
     console.error('[link-child] update failed:', updateError.message)
     return NextResponse.json({ error: 'Failed to link child account' }, { status: 500 })
+  }
+
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: 'That account is not a student' }, { status: 400 })
   }
   return NextResponse.json({ ok: true })
 }
