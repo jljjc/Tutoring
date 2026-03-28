@@ -9,26 +9,32 @@ interface NavLink {
   label: string
 }
 
+interface NavItemsProps {
+  navLinks: NavLink[]
+  pathname: string
+  initial: string
+  fullName: string
+  role: string
+  onLinkClick: () => void
+  onLogout: () => void
+}
+
 interface Props {
   user: { full_name: string; role: 'student' | 'parent' }
   navLinks: NavLink[]
   children: React.ReactNode
 }
 
-export function AppShell({ user, navLinks, children }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const pathname = usePathname()
-  const router = useRouter()
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-  }
-
-  const initial = user.full_name?.[0]?.toUpperCase() ?? '?'
-
-  const NavItems = () => (
+function NavItems({
+  navLinks,
+  pathname,
+  initial,
+  fullName,
+  role,
+  onLinkClick,
+  onLogout,
+}: NavItemsProps) {
+  return (
     <>
       <nav className="flex flex-col gap-1 flex-1">
         {navLinks.map(link => {
@@ -37,7 +43,7 @@ export function AppShell({ user, navLinks, children }: Props) {
             <Link
               key={link.href}
               href={link.href}
-              onClick={() => setDrawerOpen(false)}
+              onClick={onLinkClick}
               className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-primary/20 text-primary'
@@ -56,19 +62,19 @@ export function AppShell({ user, navLinks, children }: Props) {
             {initial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-text-primary truncate">{user.full_name}</p>
-            <p className="text-xs text-muted capitalize">{user.role}</p>
+            <p className="text-sm font-medium text-text-primary truncate">{fullName}</p>
+            <p className="text-xs text-muted capitalize">{role}</p>
           </div>
         </div>
         <Link
           href="/auth/change-password"
-          onClick={() => setDrawerOpen(false)}
+          onClick={onLinkClick}
           className="block px-4 py-2 text-sm text-muted hover:text-text-primary hover:bg-surface-raised rounded-lg transition-colors"
         >
           Change Password
         </Link>
         <button
-          onClick={handleLogout}
+          onClick={onLogout}
           className="w-full text-left px-4 py-2 text-sm text-danger hover:bg-danger/10 rounded-lg transition-colors"
         >
           Logout
@@ -76,6 +82,20 @@ export function AppShell({ user, navLinks, children }: Props) {
       </div>
     </>
   )
+}
+
+export function AppShell({ user, navLinks, children }: Props) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
+
+  const initial = user.full_name?.[0]?.toUpperCase() ?? '?'
 
   return (
     <div className="min-h-screen bg-background">
@@ -86,6 +106,7 @@ export function AppShell({ user, navLinks, children }: Props) {
           onClick={() => setDrawerOpen(o => !o)}
           className="p-2 text-muted hover:text-text-primary"
           aria-label="Toggle menu"
+          aria-expanded={drawerOpen}
         >
           {drawerOpen ? (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,10 +125,18 @@ export function AppShell({ user, navLinks, children }: Props) {
         <div className="lg:hidden fixed inset-0 z-30" onClick={() => setDrawerOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
           <div
-            className="absolute top-14 left-0 bottom-0 w-64 bg-surface flex flex-col p-4 gap-1"
+            className="absolute top-14 left-0 bottom-0 w-60 bg-surface flex flex-col p-4 gap-1"
             onClick={e => e.stopPropagation()}
           >
-            <NavItems />
+            <NavItems
+              navLinks={navLinks}
+              pathname={pathname}
+              initial={initial}
+              fullName={user.full_name}
+              role={user.role}
+              onLinkClick={() => setDrawerOpen(false)}
+              onLogout={handleLogout}
+            />
           </div>
         </div>
       )}
@@ -117,7 +146,15 @@ export function AppShell({ user, navLinks, children }: Props) {
         <div className="px-2 mb-6 mt-2">
           <span className="text-lg font-bold text-text-primary tracking-tight">GATE Prep</span>
         </div>
-        <NavItems />
+        <NavItems
+          navLinks={navLinks}
+          pathname={pathname}
+          initial={initial}
+          fullName={user.full_name}
+          role={user.role}
+          onLinkClick={() => setDrawerOpen(false)}
+          onLogout={handleLogout}
+        />
       </aside>
 
       {/* Main content */}
