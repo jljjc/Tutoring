@@ -1,4 +1,4 @@
-import { getClaudeClient } from './client'
+import { getChatCompletionText } from './client'
 import type { WritingScores, TestType } from '@/lib/types'
 
 interface ScoreWritingResult {
@@ -13,8 +13,6 @@ export async function scoreWriting(params: {
   responseText: string
   testType: TestType
 }): Promise<ScoreWritingResult> {
-  const client = getClaudeClient()
-
   const systemPrompt = `You are an experienced Australian primary school writing assessor marking Year 6 students preparing for the ${params.testType === 'gate' ? 'GATE/ASET' : 'scholarship'} test.`
 
   const userPrompt = `Writing prompt given to student:
@@ -47,20 +45,18 @@ Return ONLY valid JSON, no other text:
   "follow_up_prompt": "..."
 }`
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+  const text = await getChatCompletionText({
     system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    prompt: userPrompt,
+    maxTokens: 1024,
+    json: true,
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   let parsed: Record<string, unknown>
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error(`Claude returned non-JSON response: ${text.slice(0, 200)}`)
+    throw new Error(`OpenAI returned non-JSON response: ${text.slice(0, 200)}`)
   }
 
   const scores = parsed.scores as WritingScores

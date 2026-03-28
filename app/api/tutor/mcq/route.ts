@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     conceptChecks = result.conceptChecks
     gapQuestion = result.gapQuestion
   } catch (err: unknown) {
-    console.error('[tutor/mcq] Claude error:', err)
+    console.error('[tutor/mcq] AI error:', err)
     return NextResponse.json({ error: 'Failed to generate tutoring' }, { status: 500 })
   }
 

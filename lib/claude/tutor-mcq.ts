@@ -1,4 +1,4 @@
-import { getClaudeClient } from './client'
+import { getChatCompletionText } from './client'
 import type { Question } from '@/lib/types'
 
 export interface ConceptCheck {
@@ -30,7 +30,6 @@ export async function tutorMcq(params: {
   wrongAnswer: string
   attemptNumber: number
 }): Promise<TutorMcqResult> {
-  const client = getClaudeClient()
   const { question, wrongAnswer, attemptNumber } = params
 
   const optionsList = Object.entries(question.options)
@@ -94,14 +93,11 @@ Return ONLY valid JSON — no markdown, no extra text:
   }
 }`
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await getChatCompletionText({
+    prompt,
+    maxTokens: 2048,
+    json: true,
   })
-
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
 
   let parsed: {
     explanation: string
@@ -111,7 +107,7 @@ Return ONLY valid JSON — no markdown, no extra text:
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error(`Claude returned non-JSON: ${text.slice(0, 200)}`)
+    throw new Error(`OpenAI returned non-JSON: ${text.slice(0, 200)}`)
   }
 
   return {

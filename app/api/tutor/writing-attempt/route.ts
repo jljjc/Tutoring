@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       testType,
     })
   } catch (err: unknown) {
-    console.error('[tutor/writing-attempt] Claude error:', err)
+    console.error('[tutor/writing-attempt] AI error:', err)
     return NextResponse.json({ error: 'Failed to score resubmission' }, { status: 500 })
   }
 

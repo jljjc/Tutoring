@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     feedback = result.feedback
     followUpPrompt = result.followUpPrompt
   } catch (err: unknown) {
-    console.error('[tutor/writing] Claude error:', err)
+    console.error('[tutor/writing] AI error:', err)
     return NextResponse.json({ error: 'Failed to generate writing feedback' }, { status: 500 })
   }
 

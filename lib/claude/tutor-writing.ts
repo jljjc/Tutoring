@@ -1,4 +1,4 @@
-import { getClaudeClient } from './client'
+import { getChatCompletionText } from './client'
 import type { WritingScores } from '@/lib/types'
 
 export async function tutorWriting(params: {
@@ -7,7 +7,6 @@ export async function tutorWriting(params: {
   originalResponse: string
   originalScores: WritingScores
 }): Promise<{ feedback: string; followUpPrompt: string }> {
-  const client = getClaudeClient()
   const criterionLabels: Record<keyof WritingScores, string> = {
     ideas: 'Ideas & Content',
     structure: 'Structure & Organisation',
@@ -32,19 +31,17 @@ Return ONLY valid JSON:
   "follow_up_prompt": "..."
 }`
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 512,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await getChatCompletionText({
+    prompt,
+    maxTokens: 512,
+    json: true,
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   let parsed: { feedback: string; follow_up_prompt: string }
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error(`Claude returned non-JSON response: ${text.slice(0, 200)}`)
+    throw new Error(`OpenAI returned non-JSON response: ${text.slice(0, 200)}`)
   }
   return { feedback: parsed.feedback, followUpPrompt: parsed.follow_up_prompt }
 }

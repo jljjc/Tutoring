@@ -1,4 +1,4 @@
-import { getClaudeClient } from './client'
+import { getChatCompletionText } from './client'
 import type { Question, TestType } from '@/lib/types'
 
 interface GenerateQuestionsParams {
@@ -11,7 +11,6 @@ interface GenerateQuestionsParams {
 
 export async function generateQuestions(params: GenerateQuestionsParams): Promise<Omit<Question, 'id' | 'generated_at'>[]> {
   const { testType, section, topic, difficulty, count } = params
-  const client = getClaudeClient()
 
   const diffLabel = difficulty <= 2 ? 'easy' : difficulty <= 4 ? 'medium' : 'hard'
 
@@ -39,40 +38,48 @@ Requirements:
 - Brief explanation of why the correct answer is right
 ${abstractInstructions}
 
-Return ONLY a valid JSON array, no other text:
-[
-  {
-    "question_text": "...",
-    "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
-    "correct_answer": "A",
-    "explanation": "..."
-  }
-]`
+Return ONLY a valid JSON object, no other text:
+{
+  "questions": [
+    {
+      "question_text": "...",
+      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+      "correct_answer": "A",
+      "explanation": "..."
+    }
+  ]
+}`
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await getChatCompletionText({
+    prompt,
+    maxTokens: 4096,
+    json: true,
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-  let parsed: unknown[]
+  let parsed: { questions?: unknown[] }
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error(`Claude returned non-JSON response: ${text.slice(0, 200)}`)
+    throw new Error(`OpenAI returned non-JSON response: ${text.slice(0, 200)}`)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (parsed as any[]).map((q) => ({
-    test_type: testType,
-    section,
-    topic,
-    difficulty,
-    question_text: q.question_text as string,
-    options: q.options as { A: string; B: string; C: string; D: string },
-    correct_answer: q.correct_answer as string,
-    explanation: q.explanation as string,
-  }))
+  return (parsed.questions ?? []).map((q) => {
+    const question = q as {
+      question_text: string
+      options: { A: string; B: string; C: string; D: string }
+      correct_answer: string
+      explanation: string
+    }
+
+    return {
+      test_type: testType,
+      section,
+      topic,
+      difficulty,
+      question_text: question.question_text,
+      options: question.options,
+      correct_answer: question.correct_answer,
+      explanation: question.explanation,
+    }
+  })
 }
