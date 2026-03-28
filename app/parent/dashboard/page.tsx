@@ -6,11 +6,7 @@ import { LinkStudentForm } from '@/components/parent/LinkStudentForm'
 
 type ChildRow = {
   id: string
-  users: { full_name: string } | Array<{ full_name: string }>
-}
-
-function getChildName(child: ChildRow): string {
-  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+  full_name: string
 }
 
 export default async function ParentDashboard() {
@@ -18,12 +14,32 @@ export default async function ParentDashboard() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: children } = await supabase
+  const { data: childProfiles, error: childProfilesError } = await supabase
     .from('student_profiles')
-    .select('id, users!inner(full_name)')
+    .select('id')
     .eq('parent_id', user.id)
 
-  const childList = (children ?? []) as unknown as ChildRow[]
+  if (childProfilesError) {
+    console.error('[parent/dashboard] child profile query failed:', childProfilesError.message)
+  }
+
+  const linkedChildIds = (childProfiles ?? []).map(child => child.id)
+  const { data: childUsers, error: childUsersError } = linkedChildIds.length > 0
+    ? await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', linkedChildIds)
+    : { data: [], error: null }
+
+  if (childUsersError) {
+    console.error('[parent/dashboard] child user query failed:', childUsersError.message)
+  }
+
+  const nameById = new Map((childUsers ?? []).map(userRow => [userRow.id, userRow.full_name]))
+  const childList: ChildRow[] = linkedChildIds.map(id => ({
+    id,
+    full_name: nameById.get(id) ?? 'Student',
+  }))
   const childIds = childList.map(child => child.id)
 
   const { data: sessions } = childIds.length > 0
@@ -68,7 +84,7 @@ export default async function ParentDashboard() {
                     className="bg-surface border border-border rounded-2xl p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-semibold text-text-primary">{getChildName(child)}</p>
+                    <p className="font-semibold text-text-primary">{child.full_name}</p>
                     {tss ? (
                       <p className="text-sm text-muted mt-1">
                         TSS <span className="text-accent font-bold tabular-nums">{Math.round(tss)}</span>

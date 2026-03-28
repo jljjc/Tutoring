@@ -47,12 +47,13 @@ export async function POST(request: Request) {
   // Cache generated questions in memory so we can return them even if DB insert fails
   const generatedQuestionCache = new Map<string, Question>()
 
-  // Process all sections in parallel
-  await Promise.all(sections.map(async (section) => {
+  // Process sections sequentially to avoid a burst of expensive model calls that
+  // can trigger rate limits or long tail latency in preview deployments.
+  for (const section of sections) {
     try {
       if (section.type === 'writing') {
         writingPrompts[section.key] = await generateWritingPrompt(testType)
-        return
+        continue
       }
 
       const slots = buildDifficultySlots(section.questionCount)
@@ -66,18 +67,32 @@ export async function POST(request: Request) {
       let selected = selectQuestions(bank ?? [], seenIds, slots)
 
       if (!selected) {
-        // Generate all 3 difficulty levels in parallel to avoid serial timeouts
+        const shortfallCounts = {
+          easy: Math.max(0, slots.easy - (bank ?? []).filter(q => !seenIds.has(q.id) && q.difficulty <= 2).length),
+          medium: Math.max(0, slots.medium - (bank ?? []).filter(q => !seenIds.has(q.id) && q.difficulty >= 3 && q.difficulty <= 4).length),
+          hard: Math.max(0, slots.hard - (bank ?? []).filter(q => !seenIds.has(q.id) && q.difficulty === 5).length),
+        }
+
+        // Generate only what is missing, plus a tiny buffer, instead of always asking
+        // for 30 questions per section. This keeps preview requests much lighter.
         const generatedWithIds: Array<{ id: string; difficulty: number }> = []
 
-        const batches = await Promise.all([1, 3, 5].map(difficulty =>
-          generateQuestions({
+        const generationPlan = [
+          { difficulty: 1, count: shortfallCounts.easy > 0 ? shortfallCounts.easy + 2 : 0 },
+          { difficulty: 3, count: shortfallCounts.medium > 0 ? shortfallCounts.medium + 2 : 0 },
+          { difficulty: 5, count: shortfallCounts.hard > 0 ? shortfallCounts.hard + 2 : 0 },
+        ].filter(item => item.count > 0)
+
+        const batches = []
+        for (const item of generationPlan) {
+          batches.push(await generateQuestions({
             testType,
             section: section.key,
             topic: section.key.replace(/_/g, ' '),
-            difficulty,
-            count: 10,
-          })
-        ))
+            difficulty: item.difficulty,
+            count: item.count,
+          }))
+        }
 
         for (const questions of batches) {
           // Try to insert into DB for future reuse
@@ -117,7 +132,7 @@ export async function POST(request: Request) {
       })
       throw error
     }
-  }))
+  }
 
   // Fetch DB questions, then merge with any in-memory generated ones
   const allIds = Object.values(assembledSections).flat().map(q => q.id)

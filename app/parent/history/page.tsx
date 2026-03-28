@@ -5,11 +5,7 @@ import Link from 'next/link'
 const PAGE_SIZE = 10
 type ChildRow = {
   id: string
-  users: { full_name: string } | Array<{ full_name: string }>
-}
-
-function getChildName(child: ChildRow): string {
-  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+  full_name: string
 }
 
 export default async function ParentHistoryPage({
@@ -26,12 +22,32 @@ export default async function ParentHistoryPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: children } = await supabase
+  const { data: childProfiles, error: childProfilesError } = await supabase
     .from('student_profiles')
-    .select('id, users!inner(full_name)')
+    .select('id')
     .eq('parent_id', user.id)
 
-  const childList = (children ?? []) as unknown as ChildRow[]
+  if (childProfilesError) {
+    console.error('[parent/history] child profile query failed:', childProfilesError.message)
+  }
+
+  const linkedChildIds = (childProfiles ?? []).map(child => child.id)
+  const { data: childUsers, error: childUsersError } = linkedChildIds.length > 0
+    ? await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', linkedChildIds)
+    : { data: [], error: null }
+
+  if (childUsersError) {
+    console.error('[parent/history] child user query failed:', childUsersError.message)
+  }
+
+  const nameById = new Map((childUsers ?? []).map(userRow => [userRow.id, userRow.full_name]))
+  const childList: ChildRow[] = linkedChildIds.map(id => ({
+    id,
+    full_name: nameById.get(id) ?? 'Student',
+  }))
 
   if (childList.length === 0) {
     return (
@@ -47,7 +63,7 @@ export default async function ParentHistoryPage({
   const childIds = childList.map(child => child.id)
   const selectedChildId = childParam && childIds.includes(childParam) ? childParam : null
   const filteredChildIds = selectedChildId ? [selectedChildId] : childIds
-  const childNameById = new Map(childList.map(child => [child.id, getChildName(child)]))
+  const childNameById = new Map(childList.map(child => [child.id, child.full_name]))
 
   const { data: sessions, count } = await supabase
     .from('test_sessions')

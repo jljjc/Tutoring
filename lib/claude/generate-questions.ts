@@ -71,7 +71,7 @@ Return ONLY a valid JSON object, no other text:
   const text = await getChatCompletionText({
     model: OPENAI_QUESTION_MODEL,
     prompt,
-    maxTokens: 4096,
+    maxTokens: Math.min(2200, 260 * count),
     json: true,
   })
 

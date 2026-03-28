@@ -5,11 +5,7 @@ import { redirect } from 'next/navigation'
 
 type ChildRow = {
   id: string
-  users: { full_name: string } | Array<{ full_name: string }>
-}
-
-function getChildName(child: ChildRow): string {
-  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+  full_name: string
 }
 
 export default async function ReportsPage({
@@ -22,12 +18,32 @@ export default async function ReportsPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: children } = await supabase
+  const { data: childProfiles, error: childProfilesError } = await supabase
     .from('student_profiles')
-    .select('id, users!inner(full_name)')
+    .select('id')
     .eq('parent_id', user.id)
 
-  const childList = (children ?? []) as unknown as ChildRow[]
+  if (childProfilesError) {
+    console.error('[parent/reports] child profile query failed:', childProfilesError.message)
+  }
+
+  const childIds = (childProfiles ?? []).map(child => child.id)
+  const { data: childUsers, error: childUsersError } = childIds.length > 0
+    ? await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', childIds)
+    : { data: [], error: null }
+
+  if (childUsersError) {
+    console.error('[parent/reports] child user query failed:', childUsersError.message)
+  }
+
+  const nameById = new Map((childUsers ?? []).map(userRow => [userRow.id, userRow.full_name]))
+  const childList: ChildRow[] = childIds.map(id => ({
+    id,
+    full_name: nameById.get(id) ?? 'Student',
+  }))
   if (childList.length === 0) return <div className="p-8">No student linked.</div>
 
   const selectedChild = childList.find(child => child.id === childParam) ?? childList[0]
@@ -56,7 +72,7 @@ export default async function ReportsPage({
 
   return (
     <main className="max-w-2xl mx-auto p-8 flex flex-col gap-8">
-      <h1 className="text-2xl font-bold">Detailed Report for {getChildName(selectedChild)}</h1>
+      <h1 className="text-2xl font-bold">Detailed Report for {selectedChild.full_name}</h1>
 
       <section>
         <h2 className="font-semibold mb-3">Knowledge Gap Map</h2>
