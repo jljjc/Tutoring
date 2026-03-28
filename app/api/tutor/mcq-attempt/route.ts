@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { tutoringSessionId, selectedAnswer, correctAnswer } = await request.json()
+  const { tutoringSessionId, selectedAnswer, correctAnswer, conceptChecksPassed } = await request.json()
   if (!tutoringSessionId || !selectedAnswer || !correctAnswer) {
     return NextResponse.json({ error: 'tutoringSessionId, selectedAnswer, and correctAnswer are required' }, { status: 400 })
   }
@@ -18,7 +18,13 @@ export async function POST(request: Request) {
 
   const priorityGap = !mastered && (ts?.attempts ?? 0) >= 3
 
-  const { error: updateError } = await supabase.from('tutoring_sessions').update({ mastered }).eq('id', tutoringSessionId)
+  const updatePayload: Record<string, unknown> = { mastered }
+  if (typeof conceptChecksPassed === 'number') {
+    updatePayload.concept_checks_passed = conceptChecksPassed
+  }
+
+  const { error: updateError } = await supabase
+    .from('tutoring_sessions').update(updatePayload).eq('id', tutoringSessionId)
   if (updateError) console.error('[tutor/mcq-attempt] update failed:', updateError.message)
 
   return NextResponse.json({ mastered, priorityGap })

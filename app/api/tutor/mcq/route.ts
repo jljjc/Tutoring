@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { tutorMcq } from '@/lib/claude/tutor-mcq'
+import { tutorMcq, type ConceptCheck, type GapQuestion } from '@/lib/claude/tutor-mcq'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -12,12 +12,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'sessionId, questionId, and wrongAnswer are required' }, { status: 400 })
   }
 
-  // Fetch question
   const { data: question } = await supabase
     .from('question_bank').select('*').eq('id', questionId).single()
   if (!question) return NextResponse.json({ error: 'Question not found' }, { status: 404 })
 
-  // Get existing tutoring session if any
   const { data: existing } = await supabase
     .from('tutoring_sessions')
     .select('*').eq('session_id', sessionId).eq('question_id', questionId).single()
@@ -25,11 +23,14 @@ export async function POST(request: Request) {
   const attempts = (existing?.attempts ?? 0) + 1
 
   let explanation: string
-  let followupQuestion: Omit<typeof question, 'id' | 'generated_at'>
+  let conceptChecks: ConceptCheck[]
+  let gapQuestion: GapQuestion
+
   try {
     const result = await tutorMcq({ question, wrongAnswer, attemptNumber: attempts })
     explanation = result.explanation
-    followupQuestion = result.followupQuestion
+    conceptChecks = result.conceptChecks
+    gapQuestion = result.gapQuestion
   } catch (err: unknown) {
     console.error('[tutor/mcq] Claude error:', err)
     return NextResponse.json({ error: 'Failed to generate tutoring' }, { status: 500 })
@@ -40,20 +41,23 @@ export async function POST(request: Request) {
   if (existing) {
     await supabase.from('tutoring_sessions').update({
       ai_explanation: explanation,
-      followup_question: followupQuestion,
+      followup_question: gapQuestion,
       attempts,
     }).eq('id', existing.id)
     tutoringSessionId = existing.id
   } else {
-    const { data: inserted, error: insertError } = await supabase.from('tutoring_sessions').insert({
-      session_id: sessionId,
-      student_id: user.id,
-      question_id: questionId,
-      wrong_answer: wrongAnswer,
-      ai_explanation: explanation,
-      followup_question: followupQuestion,
-      attempts,
-    }).select('id').single()
+    const { data: inserted, error: insertError } = await supabase
+      .from('tutoring_sessions').insert({
+        session_id: sessionId,
+        student_id: user.id,
+        question_id: questionId,
+        wrong_answer: wrongAnswer,
+        ai_explanation: explanation,
+        followup_question: gapQuestion,
+        attempts,
+        concept_checks_passed: 0,
+      }).select('id').single()
+
     if (insertError || !inserted) {
       console.error('[tutor/mcq] insert failed:', insertError?.message)
       return NextResponse.json({ error: 'Failed to save tutoring session' }, { status: 500 })
@@ -61,5 +65,11 @@ export async function POST(request: Request) {
     tutoringSessionId = inserted.id
   }
 
-  return NextResponse.json({ explanation, followupQuestion, attempts, tutoringSessionId })
+  return NextResponse.json({
+    explanation,
+    conceptChecks,
+    gapQuestion,
+    attempts,
+    tutoringSessionId,
+  })
 }
