@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { KnowledgeGapMap } from '@/components/reports/KnowledgeGapMap'
 import { ImprovementSuggestions } from '@/components/reports/ImprovementSuggestions'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import {
   formatSectionLabel,
   getRecentStudentReportAnalysis,
@@ -11,6 +12,11 @@ import {
 type ChildRow = {
   id: string
   full_name: string
+}
+
+function getChildDisplayName(fullName: string | null | undefined, index: number): string {
+  const trimmed = fullName?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : `Child ${index + 1}`
 }
 
 function formatSectionScore(session: ReportSessionSummary, key: string, fallbackKey?: string): string {
@@ -54,9 +60,9 @@ export default async function ReportsPage({
   }
 
   const nameById = new Map((childUsers ?? []).map(userRow => [userRow.id, userRow.full_name]))
-  const childList: ChildRow[] = childIds.map(id => ({
+  const childList: ChildRow[] = childIds.map((id, index) => ({
     id,
-    full_name: nameById.get(id) ?? 'Student',
+    full_name: getChildDisplayName(nameById.get(id), index),
   }))
 
   if (childList.length === 0) {
@@ -104,9 +110,13 @@ export default async function ReportsPage({
                   <p className="text-sm font-medium text-text-primary capitalize">{formatSectionLabel(section.section)}</p>
                   <p className="text-xs text-muted">{section.wrongCount} incorrect question{section.wrongCount === 1 ? '' : 's'}</p>
                 </div>
-                <span className="px-2 py-1 rounded-full bg-primary/15 text-primary text-xs font-semibold">
+                <Link
+                  href={`/parent/history?child=${selectedChild.id}`}
+                  className="px-2 py-1 rounded-full bg-primary/15 text-primary text-xs font-semibold hover:bg-primary/25 transition-colors"
+                  aria-label={`View ${selectedChild.full_name}'s history for ${formatSectionLabel(section.section)}`}
+                >
                   Focus Area
-                </span>
+                </Link>
               </div>
             ))}
           </div>

@@ -9,6 +9,11 @@ type ChildRow = {
   full_name: string
 }
 
+function getChildDisplayName(fullName: string | null | undefined, index: number): string {
+  const trimmed = fullName?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : `Child ${index + 1}`
+}
+
 export default async function ParentDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -36,9 +41,9 @@ export default async function ParentDashboard() {
   }
 
   const nameById = new Map((childUsers ?? []).map(userRow => [userRow.id, userRow.full_name]))
-  const childList: ChildRow[] = linkedChildIds.map(id => ({
+  const childList: ChildRow[] = linkedChildIds.map((id, index) => ({
     id,
-    full_name: nameById.get(id) ?? 'Student',
+    full_name: getChildDisplayName(nameById.get(id), index),
   }))
   const childIds = childList.map(child => child.id)
 
