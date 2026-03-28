@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { McqExplanation } from '@/components/tutor/McqExplanation'
 import { createClient } from '@/lib/supabase/client'
-import type { Question } from '@/lib/types'
+import type { ConceptCheck, GapQuestion } from '@/lib/claude/tutor-mcq'
 import Link from 'next/link'
 
 interface AnswerRow {
@@ -16,7 +16,8 @@ interface AnswerRow {
 interface TutorData {
   answer: AnswerRow
   explanation: string
-  followupQuestion: Omit<Question, 'id' | 'generated_at'>
+  conceptChecks: ConceptCheck[]
+  gapQuestion: GapQuestion
   tutoringSessionId: string
   attempts: number
 }
@@ -54,28 +55,41 @@ export default function TutorPage() {
     load()
   }, [id])
 
-  if (loading) return <div className="p-8 text-center">Loading tutoring...</div>
-  if (!data) return <div className="p-8">Not found.</div>
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-muted text-sm">Generating tutoring session...</p>
+      </div>
+    </div>
+  )
+
+  if (!data) return (
+    <div className="max-w-2xl mx-auto px-6 py-10">
+      <p className="text-muted">Session not found.</p>
+    </div>
+  )
 
   return (
-    <main className="max-w-2xl mx-auto p-8 flex flex-col gap-6">
+    <main className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Let&apos;s review this question</h1>
-        <Link href="/student/dashboard" className="text-sm text-gray-500">Skip</Link>
+        <h1 className="text-xl font-bold text-text-primary">Review this question</h1>
+        <Link href="/student/dashboard" className="text-sm text-muted hover:text-text-primary">Skip</Link>
       </div>
 
-      <div className="p-4 bg-gray-50 rounded-xl">
-        <p className="text-sm text-gray-500 mb-1">{data.answer.question_bank.section.replace(/_/g, ' ')}</p>
-        <p>{data.answer.question_bank.question_text}</p>
+      <div className="p-4 bg-surface border border-border rounded-2xl">
+        <p className="text-xs text-muted mb-1 capitalize">{data.answer.question_bank.section.replace(/_/g, ' ')}</p>
+        <p className="text-text-primary text-sm leading-relaxed whitespace-pre-wrap font-mono">{data.answer.question_bank.question_text}</p>
       </div>
 
       {mastered
-        ? <div className="p-6 bg-green-50 border border-green-300 rounded-xl text-center text-green-800 font-semibold">
+        ? <div className="p-6 bg-success/10 border border-success/30 rounded-2xl text-center text-success font-semibold">
             Topic mastered! <Link href="/student/dashboard" className="underline ml-2">Back to dashboard</Link>
           </div>
         : <McqExplanation
             explanation={data.explanation}
-            followupQuestion={data.followupQuestion}
+            conceptChecks={data.conceptChecks ?? []}
+            gapQuestion={data.gapQuestion}
             tutoringSessionId={data.tutoringSessionId}
             attempts={data.attempts}
             onMastered={() => setMastered(true)}
