@@ -24,22 +24,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No student account found with that email' }, { status: 404 })
   }
 
-  // Set parent_id on student_profiles — only students have a row here.
-  // Reading the child's role from `users` would be blocked by RLS (parents can
-  // only see their own row), so we infer student status from the update result.
-  const { data: updated, error: updateError } = await supabase
-    .from('student_profiles')
-    .update({ parent_id: user.id })
-    .eq('id', childUserId)
-    .select('id')
+  // Use a SECURITY DEFINER RPC to update student_profiles.
+  // A direct UPDATE is blocked by RLS (only the student can update their own row),
+  // so we delegate to a trusted DB function that bypasses RLS safely.
+  const { error: rpcError } = await supabase
+    .rpc('link_child_to_parent', { child_id: childUserId })
 
-  if (updateError) {
-    console.error('[link-child] update failed:', updateError.message)
+  if (rpcError) {
+    if (rpcError.message.includes('not_a_student')) {
+      return NextResponse.json({ error: 'That account is not a student' }, { status: 400 })
+    }
+    if (rpcError.message.includes('already_linked')) {
+      return NextResponse.json({ error: 'That student is already linked to another parent' }, { status: 400 })
+    }
+    console.error('[link-child] rpc failed:', rpcError.message)
     return NextResponse.json({ error: 'Failed to link child account' }, { status: 500 })
-  }
-
-  if (!updated || updated.length === 0) {
-    return NextResponse.json({ error: 'That account is not a student' }, { status: 400 })
   }
   return NextResponse.json({ ok: true })
 }
