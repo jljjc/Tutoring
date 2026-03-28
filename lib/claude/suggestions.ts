@@ -1,27 +1,88 @@
 import { getChatCompletionText, OPENAI_TUTOR_MODEL } from './client'
+import { formatSectionLabel, type SectionGapSummary, type TopicGapSummary } from '@/lib/report-analysis'
 
-interface GapSummary {
-  topic: string
-  section: string
-  attempts: number
+interface SuggestionsInput {
+  recentTestsAnalyzed: number
+  totalWrongAnswers: number
+  sectionCounts: SectionGapSummary[]
+  topicCounts: TopicGapSummary[]
 }
 
-export async function generateSuggestions(gaps: GapSummary[]): Promise<string[]> {
-  if (gaps.length === 0) return ['Keep practising — no major gaps identified yet.']
+function buildSuggestionFallback(input: SuggestionsInput): string[] {
+  if (input.totalWrongAnswers === 0) {
+    return [`No incorrect answers were recorded across the last ${input.recentTestsAnalyzed} completed test${input.recentTestsAnalyzed === 1 ? '' : 's'}.`]
+  }
 
-  const gapList = gaps.map(g => `- ${g.section}: ${g.topic} (${g.attempts} failed attempts)`).join('\n')
+  const topSections = input.sectionCounts.slice(0, 2)
+  const topTopics = input.topicCounts.slice(0, 3)
+  const suggestions: string[] = []
 
-  const text = await getChatCompletionText({
-    model: OPENAI_TUTOR_MODEL,
-    prompt: `A Year 6 student preparing for the WA GATE test has the following knowledge gaps:\n${gapList}\n\nWrite 3-5 specific, actionable improvement suggestions for their parent. Each suggestion should name the topic, recommend a concrete practice activity, and suggest a frequency (e.g. 10 min daily). Return a JSON object with a "suggestions" array of strings, no other text.`,
-    maxTokens: 512,
-    json: true,
-  })
+  if (topSections.length > 0) {
+    const sectionList = topSections
+      .map(section => `${formatSectionLabel(section.section)} (${section.wrongCount} misses)`)
+      .join(' and ')
+    suggestions.push(`Prioritise ${sectionList} first, because those sections produced the most incorrect answers across recent tests.`)
+  }
+
+  for (const topic of topTopics) {
+    suggestions.push(
+      `Spend 10-15 minutes three times a week on ${topic.topic.toLowerCase()} in ${formatSectionLabel(topic.section)}, then finish with 2-3 fresh questions to check the idea sticks.`
+    )
+  }
+
+  if (input.topicCounts.every(topic => topic.occurrenceCount === 1)) {
+    suggestions.push('The errors are spread across several one-off topics, so use mixed review sets and ask the student to explain their reasoning aloud after each question.')
+  }
+
+  return suggestions.slice(0, 5)
+}
+
+export async function generateSuggestions(input: SuggestionsInput): Promise<string[]> {
+  if (input.totalWrongAnswers === 0) {
+    return buildSuggestionFallback(input)
+  }
+
+  const sectionList = input.sectionCounts
+    .map(section => `- ${formatSectionLabel(section.section)}: ${section.wrongCount} incorrect answers`)
+    .join('\n')
+  const topicList = input.topicCounts
+    .slice(0, 8)
+    .map(topic => `- ${topic.topic} (${formatSectionLabel(topic.section)}): ${topic.occurrenceCount} misses`)
+    .join('\n')
 
   try {
+    const text = await getChatCompletionText({
+      model: OPENAI_TUTOR_MODEL,
+      prompt: `A Western Australian Year 6 student preparing for Year 7 selective-entry tests has completed ${input.recentTestsAnalyzed} recent tests with ${input.totalWrongAnswers} incorrect answers.
+
+Section evidence:
+${sectionList || '- none'}
+
+Topic evidence:
+${topicList || '- none'}
+
+Write 3-5 specific, parent-facing improvement suggestions.
+
+Rules:
+- Base every suggestion on the evidence above
+- Name the weak skill or topic explicitly
+- Recommend a concrete practice routine
+- Mention frequency or volume
+- Do not say "no major gaps identified" when there are incorrect answers
+
+Return valid JSON only in this shape:
+{
+  "suggestions": ["..."]
+}`,
+      maxTokens: 512,
+      json: true,
+    })
+
     const parsed = JSON.parse(text) as { suggestions?: string[] }
-    return parsed.suggestions ?? []
-  } catch {
-    throw new Error(`OpenAI returned non-JSON response: ${text.slice(0, 200)}`)
+    const suggestions = (parsed.suggestions ?? []).filter(Boolean)
+    return suggestions.length > 0 ? suggestions : buildSuggestionFallback(input)
+  } catch (error) {
+    console.error('[suggestions] failed:', error)
+    return buildSuggestionFallback(input)
   }
 }

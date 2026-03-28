@@ -1,31 +1,22 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TEST_CONFIG } from '@/lib/test/constants'
 import { getTSSBand } from '@/lib/test/scoring'
 import { generateTestGapAnalysis } from '@/lib/claude/test-gap-analysis'
+import { formatSectionLabel, type ReportWrongAnswer } from '@/lib/report-analysis'
 
-type WrongAnswerRow = {
+type SessionRow = {
   id: string
-  selected_answer: string | null
-  question_bank: {
-    question_text: string
-    options: { A: string; B: string; C: string; D: string }
-    correct_answer: string
-    explanation: string
-    topic: string
-    section: string
-  }
+  student_id: string
+  test_type: string
+  total_score: number | null
+  section_scores: Record<string, number> | null
+  projected_tss: number | null
 }
 
-type ChildDetail = {
-  id: string
-  parent_id: string
-  users: { full_name: string } | Array<{ full_name: string }>
-}
-
-function getChildName(child: ChildDetail): string {
-  return Array.isArray(child.users) ? (child.users[0]?.full_name ?? 'Student') : child.users.full_name
+function getChildName(fullName: string | null | undefined): string {
+  return fullName?.trim() || 'Student'
 }
 
 export default async function ParentTestReportPage({
@@ -38,34 +29,93 @@ export default async function ParentTestReportPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: session } = await supabase
+  const { data: session, error: sessionError } = await supabase
     .from('test_sessions')
-    .select('*')
+    .select('id, student_id, test_type, total_score, section_scores, projected_tss')
     .eq('id', id)
-    .single()
+    .not('completed_at', 'is', null)
+    .maybeSingle()
 
-  if (!session) {
-    return <div className="p-8">Session not found.</div>
+  if (sessionError) {
+    console.error('[parent/test/report] session query failed:', sessionError.message)
   }
+  if (!session) notFound()
 
-  const { data: child } = await supabase
+  const typedSession = session as SessionRow
+
+  const { data: childProfile, error: childProfileError } = await supabase
     .from('student_profiles')
-    .select('id, parent_id, users!inner(full_name)')
-    .eq('id', session.student_id)
+    .select('id')
+    .eq('id', typedSession.student_id)
     .eq('parent_id', user.id)
     .maybeSingle()
 
-  if (!child) redirect('/parent/history')
+  if (childProfileError) {
+    console.error('[parent/test/report] child profile query failed:', childProfileError.message)
+  }
+  if (!childProfile) notFound()
 
-  const { data: wrongAnswers } = await supabase
+  const { data: childUser, error: childUserError } = await supabase
+    .from('users')
+    .select('full_name')
+    .eq('id', typedSession.student_id)
+    .maybeSingle()
+
+  if (childUserError) {
+    console.error('[parent/test/report] child user query failed:', childUserError.message)
+  }
+
+  const { data: wrongAnswersData, error: wrongAnswersError } = await supabase
     .from('test_answers')
-    .select('id, selected_answer, question_bank!inner(question_text, options, correct_answer, explanation, topic, section)')
+    .select('id, session_id, selected_answer, question_bank!inner(question_text, options, correct_answer, explanation, topic, section)')
     .eq('session_id', id)
     .eq('is_correct', false)
 
-  const scores = session.section_scores as Record<string, number> | null
-  const tss = session.projected_tss
-  const testType = session.test_type as keyof typeof TEST_CONFIG
+  if (wrongAnswersError) {
+    console.error('[parent/test/report] wrong answer query failed:', wrongAnswersError.message)
+  }
+
+  const wrongAnswerList: ReportWrongAnswer[] = ((wrongAnswersData ?? []) as Array<{
+    id: string
+    session_id: string
+    selected_answer: string | null
+    question_bank: {
+      question_text: string
+      options: Record<string, string>
+      correct_answer: string
+      explanation: string
+      topic: string
+      section: string
+    } | Array<{
+      question_text: string
+      options: Record<string, string>
+      correct_answer: string
+      explanation: string
+      topic: string
+      section: string
+    }>
+  }>).map(answer => {
+    const questionBank = Array.isArray(answer.question_bank)
+      ? answer.question_bank[0]
+      : answer.question_bank
+
+    return {
+      id: answer.id,
+      sessionId: answer.session_id,
+      sessionStartedAt: '',
+      selectedAnswer: answer.selected_answer,
+      questionText: questionBank.question_text,
+      options: questionBank.options,
+      correctAnswer: questionBank.correct_answer,
+      explanation: questionBank.explanation,
+      topic: questionBank.topic,
+      section: questionBank.section,
+    }
+  })
+
+  const scores = typedSession.section_scores
+  const tss = typedSession.projected_tss
+  const testType = typedSession.test_type as keyof typeof TEST_CONFIG
   const sectionMaxMap = Object.fromEntries(
     (TEST_CONFIG[testType] ?? []).map(section => [
       section.key,
@@ -75,26 +125,25 @@ export default async function ParentTestReportPage({
   const band = tss ? getTSSBand(tss) : null
   const bandColor = band && band !== 'Below Top 35%' ? 'text-primary' : 'text-muted'
 
-  const wrongCount = (wrongAnswers ?? []).length
+  const wrongCount = wrongAnswerList.length
   const totalQ = scores ? Object.values(scores).reduce((sum, score) => sum + score, 0) : 0
-  const correctCount = session.total_score ?? Math.max(totalQ - wrongCount, 0)
+  const correctCount = typedSession.total_score ?? Math.max(totalQ - wrongCount, 0)
 
   const topicsBySection = new Map<string, string[]>()
-  for (const answer of (wrongAnswers ?? []) as unknown as WrongAnswerRow[]) {
-    const section = answer.question_bank.section
-    const topic = answer.question_bank.topic
-    const topics = topicsBySection.get(section) ?? []
-    if (!topics.includes(topic)) topics.push(topic)
-    topicsBySection.set(section, topics)
+  for (const answer of wrongAnswerList) {
+    const topics = topicsBySection.get(answer.section) ?? []
+    if (!topics.includes(answer.topic)) topics.push(answer.topic)
+    topicsBySection.set(answer.section, topics)
   }
 
-  const wrongAnswerList = (wrongAnswers ?? []) as unknown as WrongAnswerRow[]
   const gapAnalysis = await generateTestGapAnalysis(
     wrongAnswerList.map(answer => ({
-      topic: answer.question_bank.topic,
-      section: answer.question_bank.section,
-      selectedAnswer: answer.selected_answer,
-      correctAnswer: answer.question_bank.correct_answer,
+      topic: answer.topic,
+      section: answer.section,
+      selectedAnswer: answer.selectedAnswer,
+      correctAnswer: answer.correctAnswer,
+      questionText: answer.questionText,
+      explanation: answer.explanation,
     }))
   )
 
@@ -105,7 +154,7 @@ export default async function ParentTestReportPage({
           <div>
             <p className="text-sm font-medium text-muted uppercase tracking-widest mb-2">Parent Report</p>
             <h1 className="text-2xl font-bold text-text-primary">
-              {getChildName(child as unknown as ChildDetail)}
+              {getChildName(childUser?.full_name)}
             </h1>
           </div>
           <Link href="/parent/history" className="text-primary text-sm font-medium hover:underline">
@@ -141,7 +190,7 @@ export default async function ParentTestReportPage({
                 return (
                   <div key={section}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-muted capitalize">{section.replace(/_/g, ' ')}</span>
+                      <span className="text-muted capitalize">{formatSectionLabel(section)}</span>
                       <span className="font-bold text-text-primary">
                         {score} / {maxScore}
                       </span>
@@ -169,7 +218,7 @@ export default async function ParentTestReportPage({
                 <div key={section}>
                   <div className="mb-2">
                     <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-semibold rounded-full capitalize">
-                      {section.replace(/_/g, ' ')}
+                      {formatSectionLabel(section)}
                     </span>
                   </div>
                   <ul className="flex flex-col gap-2">
@@ -188,7 +237,7 @@ export default async function ParentTestReportPage({
         <div className="bg-surface rounded-2xl shadow-sm border border-border p-6">
           <h2 className="font-bold text-text-primary mb-4">AI Knowledge Gap Analysis</h2>
           {!gapAnalysis ? (
-            <p className="text-sm text-muted">No significant knowledge gaps were detected from this test.</p>
+            <p className="text-sm text-muted">No incorrect questions were recorded for this test.</p>
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-text-primary leading-relaxed">{gapAnalysis.summary}</p>
@@ -197,7 +246,7 @@ export default async function ParentTestReportPage({
                   <div key={`${gap.section}-${gap.skill}-${index}`} className="rounded-xl border border-border bg-surface-raised p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-semibold rounded-full capitalize">
-                        {gap.section.replace(/_/g, ' ')}
+                        {formatSectionLabel(gap.section)}
                       </span>
                       <p className="text-sm font-semibold text-text-primary">{gap.skill}</p>
                     </div>
@@ -219,11 +268,10 @@ export default async function ParentTestReportPage({
           ) : (
             <div className="flex flex-col gap-4">
               {wrongAnswerList.map((answer, index) => {
-                const options = answer.question_bank.options
-                const selectedKey = answer.selected_answer
-                const correctKey = answer.question_bank.correct_answer
-                const selectedText = selectedKey ? options[selectedKey as keyof typeof options] : null
-                const correctText = options[correctKey as keyof typeof options]
+                const selectedKey = answer.selectedAnswer
+                const correctKey = answer.correctAnswer
+                const selectedText = selectedKey ? answer.options[selectedKey] : null
+                const correctText = answer.options[correctKey]
 
                 return (
                   <div key={answer.id} className="rounded-2xl border border-border bg-surface-raised p-5">
@@ -232,12 +280,12 @@ export default async function ParentTestReportPage({
                         {index + 1}
                       </span>
                       <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-semibold rounded-full capitalize">
-                        {answer.question_bank.section.replace(/_/g, ' ')}
+                        {formatSectionLabel(answer.section)}
                       </span>
-                      <span className="text-xs text-muted">{answer.question_bank.topic}</span>
+                      <span className="text-xs text-muted">{answer.topic}</span>
                     </div>
                     <p className="text-sm text-text-primary leading-relaxed mb-4 whitespace-pre-wrap">
-                      {answer.question_bank.question_text}
+                      {answer.questionText}
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-xl border border-danger/20 bg-danger/10 p-3">
@@ -253,7 +301,7 @@ export default async function ParentTestReportPage({
                     </div>
                     <div className="mt-3 rounded-xl border border-border p-3 bg-surface">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-1">Explanation</p>
-                      <p className="text-sm text-text-primary">{answer.question_bank.explanation}</p>
+                      <p className="text-sm text-text-primary">{answer.explanation}</p>
                     </div>
                   </div>
                 )

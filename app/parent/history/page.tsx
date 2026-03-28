@@ -119,7 +119,8 @@ export default async function ParentHistoryPage({
                 </div>
                 <Link
                   href={`/parent/test/${s.id}/report`}
-                  className="px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium rounded-xl transition-colors"
+                  className="inline-flex items-center justify-center px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 text-sm font-medium rounded-xl transition-colors"
+                  aria-label={`View report for ${childName ?? 'student'} test started ${new Date(s.started_at).toLocaleString()}`}
                 >
                   View →
                 </Link>

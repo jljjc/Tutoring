@@ -1,8 +1,7 @@
 interface GapEntry {
   topic: string
   section: string
-  mastered: boolean
-  attempts: number
+  occurrenceCount: number
 }
 
 interface Props {
@@ -11,9 +10,9 @@ interface Props {
 
 export function KnowledgeGapMap({ gaps }: Props) {
   const getStatus = (g: GapEntry) => {
-    if (g.mastered) return 'green'
-    if (g.attempts >= 3) return 'red'
-    return 'amber'
+    if (g.occurrenceCount >= 3) return 'red'
+    if (g.occurrenceCount >= 2) return 'amber'
+    return 'green'
   }
 
   const colors = {
@@ -22,7 +21,7 @@ export function KnowledgeGapMap({ gaps }: Props) {
     green: 'bg-green-100 border-green-400 text-green-800',
   }
 
-  const labels = { red: 'Priority', amber: 'Developing', green: 'Strong' }
+  const labels = { red: 'Priority', amber: 'Repeated', green: 'Watch' }
 
   return (
     <div className="flex flex-col gap-2">
@@ -36,7 +35,7 @@ export function KnowledgeGapMap({ gaps }: Props) {
           const status = getStatus(g)
           return (
             <span key={i} className={`px-3 py-1 rounded-full border text-sm ${colors[status]}`}>
-              {g.topic}
+              {g.topic} <span className="opacity-70">({g.occurrenceCount})</span>
             </span>
           )
         })}
