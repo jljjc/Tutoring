@@ -9,7 +9,7 @@ export function getOpenAIClient(): OpenAI {
   return client
 }
 
-export const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL ?? 'gpt-5-mini'
+export const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL ?? 'gpt-4o-mini'
 
 export async function getChatCompletionText(params: {
   system?: string

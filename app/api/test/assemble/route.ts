@@ -49,62 +49,74 @@ export async function POST(request: Request) {
 
   // Process all sections in parallel
   await Promise.all(sections.map(async (section) => {
-    if (section.type === 'writing') {
-      writingPrompts[section.key] = await generateWritingPrompt(testType)
-      return
-    }
-
-    const slots = buildDifficultySlots(section.questionCount)
-
-    const { data: bank } = await supabase
-      .from('question_bank')
-      .select('id, difficulty')
-      .eq('test_type', testType)
-      .eq('section', section.key)
-
-    let selected = selectQuestions(bank ?? [], seenIds, slots)
-
-    if (!selected) {
-      // Generate all 3 difficulty levels in parallel to avoid serial timeouts
-      const generatedWithIds: Array<{ id: string; difficulty: number }> = []
-
-      const batches = await Promise.all([1, 3, 5].map(difficulty =>
-        generateQuestions({
-          testType, section: section.key,
-          topic: section.key.replace(/_/g, ' '),
-          difficulty, count: 10,
-        })
-      ))
-
-      for (const questions of batches) {
-        // Try to insert into DB for future reuse
-        const { data: inserted } = await supabase
-          .from('question_bank')
-          .insert(questions)
-          .select('*')
-
-        if (inserted && inserted.length > 0) {
-          // DB insert succeeded — use real IDs
-          for (const q of inserted as Question[]) {
-            generatedWithIds.push({ id: q.id, difficulty: q.difficulty })
-            generatedQuestionCache.set(q.id, q)
-          }
-        } else {
-          // DB insert failed (likely RLS) — assign temp UUIDs so test still works
-          for (const q of questions) {
-            const id = randomUUID()
-            const full = { ...q, id, generated_at: new Date().toISOString() } as Question
-            generatedWithIds.push({ id, difficulty: q.difficulty })
-            generatedQuestionCache.set(id, full)
-          }
-        }
+    try {
+      if (section.type === 'writing') {
+        writingPrompts[section.key] = await generateWritingPrompt(testType)
+        return
       }
 
-      selected = selectQuestions(generatedWithIds, seenIds, slots)
-        ?? generatedWithIds.slice(0, slots.easy + slots.medium + slots.hard)
-    }
+      const slots = buildDifficultySlots(section.questionCount)
 
-    assembledSections[section.key] = shuffleArray(selected)
+      const { data: bank } = await supabase
+        .from('question_bank')
+        .select('id, difficulty')
+        .eq('test_type', testType)
+        .eq('section', section.key)
+
+      let selected = selectQuestions(bank ?? [], seenIds, slots)
+
+      if (!selected) {
+        // Generate all 3 difficulty levels in parallel to avoid serial timeouts
+        const generatedWithIds: Array<{ id: string; difficulty: number }> = []
+
+        const batches = await Promise.all([1, 3, 5].map(difficulty =>
+          generateQuestions({
+            testType,
+            section: section.key,
+            topic: section.key.replace(/_/g, ' '),
+            difficulty,
+            count: 10,
+          })
+        ))
+
+        for (const questions of batches) {
+          // Try to insert into DB for future reuse
+          const { data: inserted } = await supabase
+            .from('question_bank')
+            .insert(questions)
+            .select('*')
+
+          if (inserted && inserted.length > 0) {
+            // DB insert succeeded — use real IDs
+            for (const q of inserted as Question[]) {
+              generatedWithIds.push({ id: q.id, difficulty: q.difficulty })
+              generatedQuestionCache.set(q.id, q)
+            }
+          } else {
+            // DB insert failed (likely RLS) — assign temp UUIDs so test still works
+            for (const q of questions) {
+              const id = randomUUID()
+              const full = { ...q, id, generated_at: new Date().toISOString() } as Question
+              generatedWithIds.push({ id, difficulty: q.difficulty })
+              generatedQuestionCache.set(id, full)
+            }
+          }
+        }
+
+        selected = selectQuestions(generatedWithIds, seenIds, slots)
+          ?? generatedWithIds.slice(0, slots.easy + slots.medium + slots.hard)
+      }
+
+      assembledSections[section.key] = shuffleArray(selected)
+    } catch (error) {
+      console.error('[test/assemble] section generation failed:', {
+        section: section.key,
+        testType,
+        mode,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
   }))
 
   // Fetch DB questions, then merge with any in-memory generated ones
