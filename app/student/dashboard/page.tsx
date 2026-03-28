@@ -15,6 +15,7 @@ export default async function StudentDashboard() {
     .from('test_sessions')
     .select('*')
     .eq('student_id', user.id)
+    .not('completed_at', 'is', null)
     .order('started_at', { ascending: false })
     .limit(5)
 
@@ -23,46 +24,70 @@ export default async function StudentDashboard() {
   const band = tss ? getTSSBand(tss) : null
 
   return (
-    <main className="max-w-2xl mx-auto p-8 flex flex-col gap-6">
+    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Welcome, {profile?.full_name?.split(' ')[0]}</h1>
-        <Link href="/student/test/select" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
+        <h1 className="text-2xl font-bold text-text-primary">
+          Welcome, {profile?.full_name?.split(' ')[0]}
+        </h1>
+        <Link
+          href="/student/test/select"
+          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-primary/20"
+        >
           Start Test
         </Link>
       </div>
 
-      {tss && (
-        <div className="p-5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+      {tss ? (
+        <div className="bg-surface border border-border rounded-2xl p-6 flex items-center justify-between">
           <div>
-            <div className="text-sm text-gray-500">Projected GATE TSS</div>
-            <div className="text-3xl font-bold text-blue-700">{Math.round(tss)} / 400</div>
+            <p className="text-sm text-muted mb-1">Projected GATE TSS</p>
+            <p className="text-5xl font-black text-accent tabular-nums">
+              {Math.round(tss)}
+              <span className="text-xl text-muted font-normal"> / 400</span>
+            </p>
           </div>
           <div className="text-right">
-            <div className="text-lg font-semibold text-blue-600">{band}</div>
-            <div className="text-sm text-gray-500">estimated ranking</div>
+            <p className="text-lg font-semibold text-primary">{band}</p>
+            <p className="text-sm text-muted">estimated ranking</p>
           </div>
+        </div>
+      ) : (
+        <div className="bg-surface border border-border rounded-2xl p-6 text-center">
+          <p className="text-muted text-sm">Complete your first full test to see your projected TSS.</p>
         </div>
       )}
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">Recent Tests</h2>
-          <Link href="/student/history" className="text-sm text-blue-600">View all</Link>
+          <h2 className="font-semibold text-text-primary">Recent Tests</h2>
+          <Link href="/student/history" className="text-sm text-primary hover:text-primary-hover">View all →</Link>
         </div>
-        {recentSessions?.length === 0 && <p className="text-gray-500 text-sm">No tests yet. Start your first test!</p>}
-        {recentSessions?.map(s => (
-          <div key={s.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg mb-2">
-            <div>
-              <div className="font-medium uppercase text-sm">{s.test_type} — {s.mode}</div>
-              <div className="text-xs text-gray-500">{new Date(s.started_at).toLocaleDateString()}</div>
+        {(!recentSessions || recentSessions.length === 0) && (
+          <p className="text-muted text-sm p-4 bg-surface border border-border rounded-xl">
+            No tests yet. Start your first test above!
+          </p>
+        )}
+        <div className="flex flex-col gap-2">
+          {recentSessions?.map(s => (
+            <div key={s.id} className="flex justify-between items-center px-4 py-3 bg-surface border border-border rounded-xl">
+              <div>
+                <p className="text-sm font-medium text-text-primary uppercase tracking-wide">
+                  {s.test_type} — {s.mode}
+                </p>
+                <p className="text-xs text-muted">{new Date(s.started_at).toLocaleDateString()}</p>
+              </div>
+              <div className="text-right">
+                {s.projected_tss && (
+                  <p className="font-bold text-accent tabular-nums">TSS {Math.round(s.projected_tss)}</p>
+                )}
+                {s.total_score != null && (
+                  <p className="text-xs text-muted">{s.total_score} correct</p>
+                )}
+              </div>
             </div>
-            <div className="text-right">
-              <div className="font-bold">{s.total_score ?? '—'}</div>
-              {s.projected_tss && <div className="text-xs text-blue-600">TSS ~{Math.round(s.projected_tss)}</div>}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </main>
+    </div>
   )
 }

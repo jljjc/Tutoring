@@ -21,44 +21,91 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   const tss = session.projected_tss
   const band = tss ? getTSSBand(tss) : null
 
+  const bandColor = band === 'Selective Entry' || band === 'High Merit'
+    ? 'text-success' : band === 'Merit' ? 'text-primary' : 'text-muted'
+
+  const totalQ = scores ? Object.values(scores).reduce((a, b) => a + b, 0) : 0
+  const wrongCount = (wrongAnswers ?? []).length
+
   return (
-    <main className="max-w-2xl mx-auto p-8 flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Test Complete!</h1>
+    <main className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-8">
 
-      {tss && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
-          <div className="text-4xl font-bold text-blue-700">{Math.round(tss)}</div>
-          <div className="text-sm text-gray-500">Projected TSS / 400</div>
-          <div className="text-lg font-medium text-blue-600 mt-1">{band}</div>
+        {/* Hero score card */}
+        <div className="bg-surface rounded-3xl shadow-sm border border-border p-8 text-center">
+          <p className="text-sm font-medium text-muted uppercase tracking-widest mb-2">Test Complete</p>
+          {tss ? (
+            <>
+              <div className="text-7xl font-black text-accent tabular-nums">{Math.round(tss)}</div>
+              <div className="text-muted text-sm mt-1">Projected TSS / 400</div>
+              <div className={`text-xl font-bold mt-3 ${bandColor}`}>{band}</div>
+            </>
+          ) : (
+            <div className="text-2xl font-bold text-text-primary">Results ready</div>
+          )}
+          <div className="mt-4 flex justify-center gap-6 text-sm text-muted">
+            <span><span className="font-semibold text-text-primary">{totalQ - wrongCount}</span> correct</span>
+            <span><span className="font-semibold text-danger">{wrongCount}</span> to review</span>
+          </div>
         </div>
-      )}
 
-      {scores && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-semibold">Section Scores</h2>
-          {Object.entries(scores).map(([section, score]) => (
-            <div key={section} className="flex justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="capitalize">{section.replace(/_/g, ' ')}</span>
-              <span className="font-bold">{score}</span>
+        {/* Section scores */}
+        {scores && (
+          <div className="bg-surface rounded-2xl shadow-sm border border-border p-6">
+            <h2 className="font-bold text-text-primary mb-4">Section Breakdown</h2>
+            <div className="flex flex-col gap-3">
+              {Object.entries(scores).map(([section, score]) => {
+                const maxScore = 10
+                const pct = Math.min((score / maxScore) * 100, 100)
+                return (
+                  <div key={section}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-muted capitalize">{section.replace(/_/g, ' ')}</span>
+                      <span className="font-bold text-text-primary">{score}</span>
+                    </div>
+                    <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
+                      <div
+                        className="h-2 bg-primary rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
 
-      {wrongAnswers && wrongAnswers.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-semibold">Questions to Review ({wrongAnswers.length})</h2>
-          {(wrongAnswers as unknown as { id: string; question_bank: { topic: string; section: string } }[]).map((a) => (
-            <Link key={a.id} href={`/student/tutor/${a.id}`}
-              className="flex justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100">
-              <span>{a.question_bank.topic}</span>
-              <span className="text-sm text-amber-700">Review →</span>
-            </Link>
-          ))}
-        </div>
-      )}
+        {/* Questions to review */}
+        {wrongAnswers && wrongAnswers.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-sm border border-border p-6">
+            <h2 className="font-bold text-text-primary mb-1">Review with AI Tutor</h2>
+            <p className="text-sm text-muted mb-4">{wrongAnswers.length} question{wrongAnswers.length !== 1 ? 's' : ''} to work through</p>
+            <div className="flex flex-col gap-2">
+              {(wrongAnswers as unknown as { id: string; question_bank: { topic: string; section: string } }[]).map((a, i) => (
+                <Link key={a.id} href={`/student/tutor/${a.id}`}
+                  className="flex items-center justify-between p-4 bg-accent/10 border border-accent/20 rounded-xl hover:bg-accent/20 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center shrink-0">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">{a.question_bank.topic}</p>
+                      <p className="text-xs text-muted capitalize">{a.question_bank.section.replace(/_/g, ' ')}</p>
+                    </div>
+                  </div>
+                  <span className="text-accent text-sm font-medium group-hover:translate-x-0.5 transition-transform">Review →</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
-      <Link href="/student/dashboard" className="text-center py-3 border rounded-lg">Back to Dashboard</Link>
+        <Link href="/student/dashboard"
+          className="text-center py-3.5 border border-border rounded-xl text-muted hover:bg-surface-raised font-medium transition-colors">
+          Back to Dashboard
+        </Link>
+      </div>
     </main>
   )
 }
