@@ -1,9 +1,28 @@
 import { getClaudeClient } from './client'
 import type { Question } from '@/lib/types'
 
-interface TutorMcqResult {
+export interface ConceptCheck {
+  question_text: string
+  options: { A: string; B: string; C: string; D: string }
+  correct_answer: string
   explanation: string
-  followupQuestion: Omit<Question, 'id' | 'generated_at'>
+}
+
+export interface GapQuestion {
+  question_text: string
+  options: { A: string; B: string; C: string; D: string }
+  correct_answer: string
+  difficulty: number
+  explanation: string
+  topic: string
+  section: string
+  test_type: string
+}
+
+export interface TutorMcqResult {
+  explanation: string
+  conceptChecks: ConceptCheck[]
+  gapQuestion: GapQuestion
 }
 
 export async function tutorMcq(params: {
@@ -17,54 +36,87 @@ export async function tutorMcq(params: {
   const optionsList = Object.entries(question.options)
     .map(([k, v]) => `${k}: ${v}`).join('\n')
 
-  const prompt = `You are a patient tutor helping a Year 6 student who got a ${question.section.replace(/_/g, ' ')} question wrong.
+  const gapDifficulty = Math.min(5, question.difficulty + 1)
 
-Question: "${question.question_text}"
-Options:
+  const prompt = `You are a skilled tutor helping a Year 6 student (age 11-12) who answered a ${question.section.replace(/_/g, ' ')} question incorrectly.
+
+QUESTION: "${question.question_text}"
+OPTIONS:
 ${optionsList}
-Correct answer: ${question.correct_answer}
-Student chose: ${wrongAnswer}
-This is attempt ${attemptNumber} (max 3).
+CORRECT ANSWER: ${question.correct_answer} — ${question.options[question.correct_answer as keyof typeof question.options]}
+STUDENT CHOSE: ${wrongAnswer} — ${question.options[wrongAnswer as keyof typeof question.options]}
+ATTEMPT NUMBER: ${attemptNumber} (max 3)
+${attemptNumber > 1 ? '\nThe student has already attempted a similar question and got it wrong. Take a different explanation angle this time.' : ''}
 
-${attemptNumber > 1 ? 'The student got the follow-up question wrong too. Try a different explanation approach.' : ''}
+Your task has THREE parts:
 
-Provide:
-1. A clear explanation of WHY "${wrongAnswer}" is wrong (reference what that option actually means)
-2. WHY "${question.correct_answer}" is correct
-3. A memory tip or strategy to avoid this mistake
-4. A new follow-up question testing the same concept (different wording)
+PART 1 — EXPLANATION (student-facing, warm and encouraging):
+- Explain specifically why "${wrongAnswer}" is wrong
+- Explain clearly why "${question.correct_answer}" is correct
+- Give a memory tip or strategy to avoid this mistake
+- Keep it to 3-4 sentences, friendly tone for an 11-year-old
 
-Return ONLY valid JSON:
+PART 2 — CONCEPT CHECKS (1 to 3 questions):
+Decide how many concept/theory checks the student needs based on the complexity of the underlying skill.
+- Simple topic (e.g. basic vocabulary): 1 check
+- Moderate topic (e.g. multi-step reasoning): 2 checks
+- Complex topic (e.g. abstract patterns, advanced problem types): 3 checks
+Each check must target a prerequisite concept or formula BEFORE the harder question.
+These should be quick, focused, and easier than the original.
+
+PART 3 — GAP QUESTION (difficulty ${gapDifficulty}/5):
+Write one targeted question at difficulty ${gapDifficulty}/5 that:
+- Tests the SAME underlying skill but in a different context/wording
+- Is harder and more probing than the original
+- Exposes whether the student truly understands, not just memorised the answer
+- Must NOT reuse any words or numbers from the original question
+
+Return ONLY valid JSON — no markdown, no extra text:
 {
   "explanation": "...",
-  "followup_question": {
+  "concept_checks": [
+    {
+      "question_text": "...",
+      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+      "correct_answer": "B",
+      "explanation": "..."
+    }
+  ],
+  "gap_question": {
     "question_text": "...",
     "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
-    "correct_answer": "A",
+    "correct_answer": "C",
+    "difficulty": ${gapDifficulty},
+    "explanation": "...",
     "topic": "${question.topic}",
     "section": "${question.section}",
-    "test_type": "${question.test_type}",
-    "difficulty": ${question.difficulty},
-    "explanation": "..."
+    "test_type": "${question.test_type}"
   }
 }`
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  let parsed: Record<string, unknown>
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+
+  let parsed: {
+    explanation: string
+    concept_checks: ConceptCheck[]
+    gap_question: GapQuestion
+  }
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error(`Claude returned non-JSON response: ${text.slice(0, 200)}`)
+    throw new Error(`Claude returned non-JSON: ${text.slice(0, 200)}`)
   }
 
   return {
-    explanation: parsed.explanation as string,
-    followupQuestion: parsed.followup_question as Omit<Question, 'id' | 'generated_at'>,
+    explanation: parsed.explanation,
+    conceptChecks: parsed.concept_checks,
+    gapQuestion: parsed.gap_question,
   }
 }
